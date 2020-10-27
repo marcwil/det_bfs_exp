@@ -61,7 +61,7 @@ The following graph formats are supported. The loader should be able
 to automatically figure out the format.
 
   * The graph format used by [konect.cc](https://konect.cc).  The page
-    is unfortunatEach rowely down though.
+    is unfortunately down though.
 
   * The mtx format used by
     [networkrepository.com](https://networkrepository.com) is
