@@ -64,8 +64,8 @@ to automatically figure out the format.
     is unfortunately down though.
 
   * The mtx format used by
-    [networkrepository.com](https://networkrepository.com) is
-    supported. Note that some graphs on
+    [networkrepository.com](https://networkrepository.com). Note that
+    some graphs on
     [networkrepository.com](https://networkrepository.com) use a
     different format, which probably does not work.  There are plenty
     of graphs in the mtx format though.
