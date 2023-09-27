@@ -1,6 +1,6 @@
-[submodule "code/lib/googletest"]
-	path = code/lib/googletest
+[submodule "ext_libs/googletest"]
+	path = ext_libs/googletest
 	url = git@github.com:google/googletest.git
-[submodule "code/lib/girgs"]
-	path = code/lib/girgs
+[submodule "ext_libs/girgs"]
+	path = ext_libs/girgs
 	url = git@github.com:chistopher/girgs.git
