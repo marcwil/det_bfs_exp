@@ -1,0 +1,4 @@
+#pragma once
+
+#define REPO_DIR        "${CMAKE_SOURCE_DIR}/"
+#define TEST_DATA_DIR   "${CMAKE_SOURCE_DIR}/test/input"

@@ -2,7 +2,7 @@
 
 download() {
     name=$1
-    zip_url=$(curl -s http://networkrepository.com/$name | grep -o "http://nrvis.com/.*zip")
+    zip_url=$(curl -s https://networkrepository.com/$name | grep -o "http://nrvis.com/.*zip")
     wget $zip_url
 }
 

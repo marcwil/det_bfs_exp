@@ -1,0 +1,6 @@
+[submodule "code/lib/googletest"]
+	path = code/lib/googletest
+	url = git@github.com:google/googletest.git
+[submodule "code/lib/girgs"]
+	path = code/lib/girgs
+	url = git@github.com:chistopher/girgs.git
