@@ -1,4 +1,10 @@
 
+if(NOT EXISTS "${PROJECT_SOURCE_DIR}/ext_libs/googletest/CMakeLists.txt")
+    message(FATAL_ERROR
+        "Missing submodules in ext_libs/. "
+        "Please run `git submodule update --init` to fetch the submodule.")
+endif()
+
 # disable some components of GTest we don't need
 set(gtest_build_samples     OFF CACHE BOOL "")
 set(gtest_build_tests       OFF CACHE BOOL "")
