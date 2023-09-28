@@ -1,5 +1,7 @@
 
 build
+debug
+release
 cmake-build-debug
 .vscode
 instances/
