@@ -3,7 +3,12 @@
 {
     "name": "BTWCF",
     "build": { "dockerfile": "Dockerfile" },
-    "customizations": { "vscode": { "extensions": [ "ms-vscode.cpptools", "ms-vscode.cmake-tools" ] } },
+    "customizations": { "vscode": { "extensions": [
+				"ms-vscode.cpptools",
+				"ms-vscode.cmake-tools",
+				"tomoki1207.pdf",
+				"ms-vscode.cpptools-extension-pack"
+			] } },
     "containerEnv": {
         "ASAN_OPTIONS": "abort_on_error=1:detect_leaks=0",
         "UBSAN_OPTIONS": "abort_on_error=1"
