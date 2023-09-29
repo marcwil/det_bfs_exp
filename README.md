@@ -13,8 +13,8 @@ The core of the framework is in [framework](framework/).
 The [ext_libs](ext_libs/) folder contains the [CLI11](https://github.com/CLIUtils/CLI11) library for parsing command line options and the [GIRG](https://github.com/chistopher/girgs) library for generating graphs.
 Unit test are located in [tests](tests/) and use [gtest](https://github.com/google/googletest).
 Moreover, [instances](./instances) includes some small instances for initial
-testing.  The folder [evaluation](./evaluation) is empty, but we
-suggest you put your evaluation script and data there.
+testing.  The folder [evaluation](./evaluation) contains example data and an [R script](https://en.wikipedia.org/wiki/R_(programming_language)) to visualize it.
+You can use this directory to creat your own plots.
 
 
 ## Using the Framework ##
