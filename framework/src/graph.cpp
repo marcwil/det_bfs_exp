@@ -30,20 +30,26 @@ Graph::Graph(const Graph& G, const std::vector<node>& nodes) : Graph() {
   load_from_parser(parser);
 }
 
-void Graph::load_from_parser(GraphParserBase& parser) {
-  while (parser.has_next()) {
-    auto [u, v] = parser.next();
-    node max = std::max(u, v);
-    if (max >= m_nr_nodes) {
-      m_nr_nodes = max + 1;
-      m_adj_list.resize(m_nr_nodes);
-    }
-    m_adj_list[u].push_back(v);
-    m_adj_list[v].push_back(u);
-    m_nr_edges++;
-  }
+Graph::Graph(const std::vector<std::pair<unsigned, unsigned>>& edges) : Graph() {
+  GraphParserEdgeList parser(edges);
+  load_from_parser(parser);
+}
 
-  make_simple();
+void Graph::load_from_parser(GraphParserBase& parser) {
+    while (parser.has_next()) {
+        auto [u, v] = parser.next();
+        node max = std::max(u, v);
+        if (max >= m_nr_nodes) {
+            m_nr_nodes = max + 1;
+            m_adj_list.resize(m_nr_nodes);
+        }
+
+        m_adj_list[u].push_back(v);
+        m_adj_list[v].push_back(u);
+        m_nr_edges++;
+    }
+
+    make_simple();
 }
 
 unsigned Graph::n() const { return m_nr_nodes; }

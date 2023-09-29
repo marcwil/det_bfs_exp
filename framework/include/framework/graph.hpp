@@ -25,6 +25,10 @@ class Graph {
   // the subgraph induced by the given nodes sans isolated vertices).
   Graph(const Graph& G, const std::vector<node>& subgraph_nodes);
 
+  // Create a graph from a vector of edges
+  Graph(const std::vector<std::pair<unsigned, unsigned>> &edges);
+
+
   // Number of nodes and edges, respectively.
   unsigned n() const;
   unsigned m() const;
