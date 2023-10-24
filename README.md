@@ -21,7 +21,6 @@ You can use this directory to creat your own plots.
 
 The repository contains a [.devcontainer](.devcontainer/devcontainer.json). If you have [Docker](https://www.docker.com/) installed, [VSCode](https://code.visualstudio.com/) can set up a fully working development environment on your platform inside a Docker container.
 This can be especially useful for students working on windows.
-(TODO: verify GitHub codespaces working)
 
 If you don't want to use a Docker, you can build the project on your own using CMake.
 
