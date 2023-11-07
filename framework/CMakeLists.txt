@@ -8,6 +8,7 @@ set(HEADERS
     include/framework/component_structure.hpp
     include/framework/timer.hpp
     include/framework/random.hpp
+    include/framework/bibfs.hpp
 )
 
 set(SOURCE_FILES
@@ -18,6 +19,7 @@ set(SOURCE_FILES
     src/component_structure.cpp
     src/timer.cpp
     src/random.cpp
+    src/bibfs.cpp
 )
 
 # create a library of the framework
