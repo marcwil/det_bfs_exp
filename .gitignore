@@ -6,3 +6,5 @@ cmake-build-debug
 .vscode
 instances/
 
+/input/*.gr
+/output/

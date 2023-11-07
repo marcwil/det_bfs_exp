@@ -75,8 +75,8 @@ p_stats_hidden <- p_stats +
 p_stats_hidden
 
 # write plots to pdf
-ggsave("plots/plot_cost.pdf", plot_cost, width=10, height=7, unit="cm")
-ggsave("plots/plot_cost_log.pdf", plot_cost_log, width=10, height=7, unit="cm")
-ggsave("plots/plot_exponent.pdf", plot_exponent, width=10, height=7, unit="cm")
-ggsave("plots/p_stats.pdf", p_stats, width=10, height=7, unit="cm")
-ggsave("plots/p_stats_hidden.pdf", p_stats_hidden, width=10, height=7, unit="cm")
+ggsave("plots/plot_cost.pdf", plot_cost, width=20, height=14, unit="cm")
+ggsave("plots/plot_cost_log.pdf", plot_cost_log, width=20, height=14, unit="cm")
+ggsave("plots/plot_exponent.pdf", plot_exponent, width=20, height=14, unit="cm")
+ggsave("plots/p_stats.pdf", p_stats, width=20, height=14, unit="cm")
+ggsave("plots/p_stats_hidden.pdf", p_stats_hidden, width=20, height=14, unit="cm")
