@@ -74,9 +74,9 @@ p_stats_hidden <- p_stats +
   scale_color_continuous(name="??")
 p_stats_hidden
 
-# write plots to pdf
-ggsave("plots/plot_cost.pdf", plot_cost, width=20, height=14, unit="cm")
-ggsave("plots/plot_cost_log.pdf", plot_cost_log, width=20, height=14, unit="cm")
-ggsave("plots/plot_exponent.pdf", plot_exponent, width=20, height=14, unit="cm")
-ggsave("plots/p_stats.pdf", p_stats, width=20, height=14, unit="cm")
-ggsave("plots/p_stats_hidden.pdf", p_stats_hidden, width=20, height=14, unit="cm")
+# write plots to png
+ggsave("plots/plot_cost.png", plot_cost, width=20, height=14, unit="cm")
+ggsave("plots/plot_cost_log.png", plot_cost_log, width=20, height=14, unit="cm")
+ggsave("plots/plot_exponent.png", plot_exponent, width=20, height=14, unit="cm")
+ggsave("plots/p_stats.png", p_stats, width=20, height=14, unit="cm")
+ggsave("plots/p_stats_hidden.png", p_stats_hidden, width=20, height=14, unit="cm")
