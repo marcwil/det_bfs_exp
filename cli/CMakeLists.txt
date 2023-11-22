@@ -5,6 +5,7 @@ set(EXECUTABLE_FILES
     graph_generator.cpp
     bfs.cpp
     stats.cpp
+    degree.cpp
 )
 
 foreach (file ${EXECUTABLE_FILES})
