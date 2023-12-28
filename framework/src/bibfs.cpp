@@ -1,4 +1,5 @@
-#include "framework/bibfs.hpp"
+#include <algorithm>
+#include "bibfs.hpp"
 //#include "bibfs.hpp"
 
 
@@ -34,6 +35,32 @@ std::pair<signed, unsigned> BFS::search(const Graph &g, node s, node t)
   return std::make_pair(-1, res);
 }
 
+unsigned BFS::eccentricity(const Graph & g, node s)
+{
+  unsigned n = g.n();
+  std::vector<signed> dist(n, -1);
+  std::queue<node> q;
+  unsigned res = 0;
+
+  // init BFS queue and distance vector
+  dist[s] = 0;
+  q.push(s);
+
+  while (!q.empty()) {
+    node v = q.front(); q.pop();
+    for (node w : g.neighbors(v)) {
+      res++;
+      if (dist[w] == -1) {
+        // update distance and add to queue
+        dist[w] = dist[v] + 1;
+        q.push(w);
+      }
+    }
+  }
+
+  return *std::max_element(dist.begin(), dist.end());
+}
+
 void biBFS::init_state(State &state, const Graph &g, node v)
 {
   state.q = std::queue<node>();
@@ -45,7 +72,7 @@ void biBFS::init_state(State &state, const Graph &g, node v)
   state.layer = 0;
 }
 
-std::pair<signed, unsigned> biBFS::search(const Graph &g, node s, node t)
+std::pair<signed, unsigned> biBFS::search(const Graph &g, node s, node t, bool detour)
 {
   //init state
   State stateA;
@@ -69,6 +96,12 @@ std::pair<signed, unsigned> biBFS::search(const Graph &g, node s, node t)
     node v = state->q.front(); state->q.pop();
     for (node w : g.neighbors(v))
     {
+      // if detour: ignore edge between s and t
+      if (detour && ((v == s && w == t) || (v == t && w == s)))
+      {
+        continue;
+      }
+
       state->total_cost ++;
       if (state->dist[w] == -1)
       {
@@ -87,3 +120,4 @@ std::pair<signed, unsigned> biBFS::search(const Graph &g, node s, node t)
   
   return std::make_pair(-1, stateA.total_cost + stateB.total_cost);
 }
+

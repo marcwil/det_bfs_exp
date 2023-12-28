@@ -2,33 +2,12 @@
 #include <vector>
 
 #include "CLI11.hpp"
-#include "framework/graph.hpp"
-#include "framework/component_structure.hpp"
-#include "framework/bibfs.hpp"
-#include "framework/timer.hpp"
-#include "framework/random.hpp"
+#include "graph.hpp"
+#include "component_structure.hpp"
+#include "locality.hpp"
+#include "timer.hpp"
+#include "random.hpp"
 
-double clustering_coefficient(const Graph &graph) {
-  unsigned n = graph.n();
-  unsigned m = graph.m();
-  unsigned triangles = 0;
-  unsigned total = 0;
-  for (unsigned i = 0; i < n; i++) {
-    for (unsigned j : graph.neighbors(i)) {
-      if (j <= i) {
-        continue;
-      }
-      for (unsigned k : graph.neighbors(i)) {
-        // check if j and the k-th neighbor of i are connected
-        if (j < k && std::find(graph.neighbors(j).begin(), graph.neighbors(j).end(), k) != graph.neighbors(j).end()) {
-          triangles++;
-        }
-        total ++;
-      }
-    }
-  }
-  return 3 * triangles / (double) total;
-}
 
 int main(int argc, char** argv) {
   CLI::App app{"Beating the Worst Case -- BiBFS"};
@@ -52,7 +31,7 @@ int main(int argc, char** argv) {
   //file_name = CLI11_PARSE(app, argc, argv);
 
   if (!no_header) {
-    std::cout << "n,m,maxdeg,avgdeg,deg_cov,clustering" << std::endl;
+    std::cout << "n,m,maxdeg,avgdeg,deg_cov,local_clustering,global_clustering,distance_locality" << std::endl;
   }
   if (only_header) {
     return 0;
@@ -80,9 +59,16 @@ int main(int argc, char** argv) {
   }
   double cov = sqrt(deg_variance / n) / avgdeg;
 
-  double clust = clustering_coefficient(H);
+  double local_clustering = average_local_clustering(H);
 
-  std::cout << n << "," << m << "," << maxdeg << "," << avgdeg << "," << cov << "," << clust << std::endl;
+  auto global_cluster_info = global_clustering(H);
+
+  auto average_distance_info = average_distance_locality(H, 100);
+
+  std::cout << n << "," << m << "," << maxdeg << "," << avgdeg << "," << cov << ","
+        << local_clustering << ","
+        << global_cluster_info.global_clustering_coeff << ","
+        << average_distance_info.distance_locality << std::endl;
 
   return 0;
 }

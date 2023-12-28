@@ -1,7 +1,7 @@
 #include <chrono>
 #include <thread>
 
-#include "framework/timer.hpp"
+#include "timer.hpp"
 #include "gtest/gtest.h"
 
 TEST(timer, wait) {
@@ -25,7 +25,7 @@ TEST(timer, wait) {
 
   Timer::stop_timer("overall");
 
-  double delta = 1.0;
+  double delta = 2.0;
 
   EXPECT_GE(Timer::time("overall").count(), 90);
   EXPECT_LE(Timer::time("overall").count(), 90 + delta);

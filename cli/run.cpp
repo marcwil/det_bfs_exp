@@ -1,9 +1,9 @@
 #include <iostream>
 
 #include "CLI11.hpp"
-#include "framework/component_structure.hpp"
-#include "framework/graph.hpp"
-#include "framework/timer.hpp"
+#include "component_structure.hpp"
+#include "graph.hpp"
+#include "timer.hpp"
 
 int main(int argc, char** argv) {
   CLI::App app{"Beating the Worst Case"};

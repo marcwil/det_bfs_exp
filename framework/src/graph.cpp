@@ -1,8 +1,8 @@
-#include "framework/graph.hpp"
+#include "graph.hpp"
 
 #include <algorithm>
 
-#include "framework/graph_parser.hpp"
+#include "graph_parser.hpp"
 
 Graph::Graph() : m_nr_nodes(0), m_nr_edges(0) {}
 

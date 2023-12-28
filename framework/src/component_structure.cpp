@@ -1,4 +1,4 @@
-#include "framework/component_structure.hpp"
+#include "component_structure.hpp"
 
 #include <queue>
 #include <vector>

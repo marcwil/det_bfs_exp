@@ -3,9 +3,9 @@
 #include <string>
 #include <vector>
 
-#include "framework/component_structure.hpp"
-#include "framework/graph.hpp"
-#include "framework/paths.h"
+#include "component_structure.hpp"
+#include "graph.hpp"
+#include "paths.h"
 #include "gtest/gtest.h"
 
 const std::filesystem::path input_dir{TEST_DATA_DIR};

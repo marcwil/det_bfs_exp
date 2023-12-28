@@ -1,11 +1,11 @@
 #include <iostream>
 
 #include "CLI11.hpp"
-#include "framework/graph.hpp"
-#include "framework/component_structure.hpp"
-#include "framework/bibfs.hpp"
-#include "framework/timer.hpp"
-#include "framework/random.hpp"
+#include "graph.hpp"
+#include "component_structure.hpp"
+#include "bibfs.hpp"
+#include "timer.hpp"
+#include "random.hpp"
 
 int main(int argc, char** argv) {
   CLI::App app{"Beating the Worst Case -- BiBFS"};

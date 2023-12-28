@@ -1,4 +1,4 @@
-#include "framework/graph_parser.hpp"
+#include "graph_parser.hpp"
 
 #include <sstream>
 #include <string>

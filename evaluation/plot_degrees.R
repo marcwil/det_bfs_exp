@@ -5,6 +5,11 @@ suppressPackageStartupMessages(library(ggplot2))
 
 degree <- tibble(read.csv("../output/degree_merged.csv"))
 
+degree <- degree %>%
+  mutate(
+    real = grepl("\\.edges$", graph)
+  )
+
 summary <- degree %>%
   group_by(graph) %>%
   summarise(
@@ -64,12 +69,20 @@ degree %>%
 ## CCDF
 
 graph_data <- degree %>%
-  filter(graph == powerlaw_names[1]) %>%
+  filter(real) %>%
+  group_by(graph) %>%
   arrange(deg) %>%
   mutate(
     cum_count = rev(cumsum(rev(num))),
     ccdf = cum_count / sum(num)
   )
+
+# Define logarithmic breaks
+log_breaks <- function() {
+  function(limits) {
+    10^seq(floor(log10(min(limits))), ceiling(log10(max(limits))), by = 1)
+  }
+}
 
 minor_breaks <- function(x) {
   unlist(lapply(1:10, function(i) i * 10^x))
@@ -79,7 +92,7 @@ minor_breaks <- function(x) {
 x_minor <- log10(min(graph_data$deg)):log10(max(graph_data$deg))
 y_minor <- log10(min(graph_data$ccdf)):log10(max(graph_data$ccdf))
 
-ggplot(graph_data, aes(x = deg, y = ccdf)) +
+ggplot(graph_data, aes(x = deg, y = ccdf, color=graph)) +
   geom_point() +
   scale_x_log10(breaks = log_breaks(), minor_breaks = minor_breaks(x_minor)) +
   scale_y_log10(breaks = log_breaks(), minor_breaks = minor_breaks(y_minor)) +

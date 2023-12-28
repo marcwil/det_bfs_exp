@@ -1,6 +1,6 @@
 #pragma once
 
-#include "framework/graph.hpp"
+#include "graph.hpp"
 #include "girgs/Generator.h"
 
 struct GenOptions {

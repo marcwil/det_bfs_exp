@@ -1,9 +1,9 @@
 #include <iostream>
 
 #include "CLI11.hpp"
-#include "framework/component_structure.hpp"
-#include "framework/graph.hpp"
-#include "framework/graph_writer.hpp"
+#include "component_structure.hpp"
+#include "graph.hpp"
+#include "graph_writer.hpp"
 
 int main(int argc, char** argv) {
   CLI::App app{"Converting Konect or mtx format to simple edge list"};

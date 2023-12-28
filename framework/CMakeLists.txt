@@ -1,32 +1,11 @@
-
-# header, source and executable files
-set(HEADERS
-    include/framework/graph.hpp
-    include/framework/graph_parser.hpp
-    include/framework/graph_writer.hpp
-    include/framework/graph_generator.hpp
-    include/framework/component_structure.hpp
-    include/framework/timer.hpp
-    include/framework/random.hpp
-    include/framework/bibfs.hpp
-)
-
-set(SOURCE_FILES
-    src/graph.cpp
-    src/graph_parser.cpp
-    src/graph_writer.cpp
-    src/graph_generator.cpp
-    src/component_structure.cpp
-    src/timer.cpp
-    src/random.cpp
-    src/bibfs.cpp
-)
+# Automatically find all source files in the src directory
+file(GLOB_RECURSE SOURCE_FILES "src/*.cpp" "src/*.hpp")
 
 # create a library of the framework
-configure_file(include/framework/paths.h.in include/framework/paths.h)
-add_library(framework SHARED ${HEADERS} ${SOURCE_FILES})
+configure_file(src/paths.h.in src/paths.h)
+add_library(framework SHARED ${SOURCE_FILES})
 target_link_libraries(framework girgs)
-target_include_directories(framework PUBLIC include lib ${CMAKE_CURRENT_BINARY_DIR}/include)
+target_include_directories(framework PUBLIC src ${CMAKE_CURRENT_BINARY_DIR}/src)
 target_compile_options(framework PUBLIC
     -Wall -Wextra -pedantic
     -fsanitize=address,undefined
@@ -37,4 +16,3 @@ target_link_options(framework PUBLIC
     -fsanitize=address,undefined
     -fno-omit-frame-pointer
 )
-

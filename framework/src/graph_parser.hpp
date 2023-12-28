@@ -4,7 +4,7 @@
 #include <fstream>
 #include <vector>
 
-#include "framework/graph.hpp"
+#include "graph.hpp"
 
 // Utility class for parsing a graph from a list of edges, where each edge is
 // given as a pair of node labels.  The node labels are assumed to be

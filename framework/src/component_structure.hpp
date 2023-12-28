@@ -2,7 +2,7 @@
 
 #include <queue>
 
-#include "framework/graph.hpp"
+#include "graph.hpp"
 
 typedef unsigned component;
 

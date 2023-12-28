@@ -1,4 +1,4 @@
-#include "framework/graph_writer.hpp"
+#include "graph_writer.hpp"
 
 void write_edge_list(const Graph& G, std::ostream& out) {
   for (node u = 0; u < G.n(); ++u) {

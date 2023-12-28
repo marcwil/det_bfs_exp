@@ -1,6 +1,6 @@
-#include "framework/graph_generator.hpp"
+#include "graph_generator.hpp"
 
-#include "framework/random.hpp"
+#include "random.hpp"
 
 Graph GraphGenerator::generateRandomGraph(const GenOptions& options) {
     const double T = options.T;
