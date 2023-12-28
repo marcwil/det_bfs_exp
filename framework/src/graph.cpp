@@ -60,6 +60,11 @@ const std::vector<node>& Graph::neighbors(node v) const {
   return m_adj_list[v];
 }
 
+bool Graph::has_edge(node u, node v) const {
+  auto& neighbors = m_adj_list[u];
+  return std::find(neighbors.begin(), neighbors.end(), v) != neighbors.end();
+}
+
 unsigned Graph::degree(node v) const { return neighbors(v).size(); }
 
 void Graph::make_simple() {
