@@ -1,23 +1,18 @@
-# Beating the Worst Case -- Framework #
+# Deterministic BFS Experiments #
 
-This small framework serves as a starting point for the practical
-course _"Beating the Worst Case in Practice: Unerwartet effiziente
-Algorithmen"_.  As participant, you probably want to fork this
-repository. As the repository contains submodules, you want to clone it with the `--recurse` flag.
+This repository contains the code for the experiments section of the paper **Deterministic Performance Guarantees for Bidirectional BFS on Real-World Networks**, [published at IWOCA 2023](https://link.springer.com/chapter/10.1007/978-3-031-34347-6_9).
+See also the ArXiv version [here](https://arxiv.org/abs/2209.15300).
 
-``` console
-git clone --recurse git@link_to_your_repository
-```
+To reproduce the experiments, follow the following steps:
+- you need to compile the C++ code as described below
+- install the [run library](https://github.com/thobl/run)
+- execute the experiments, using `python experiment.py stats experiments merge`
+- alternatively, to just see the experiments that can be run, simply run `python experiment.py`
+- go to `evaluation` and run `plot_for_paper.R` to create the plots in the paper (and a few more)
 
-The core of the framework is in [framework](framework/).
-The [ext_libs](ext_libs/) folder contains the [CLI11](https://github.com/CLIUtils/CLI11) library for parsing command line options and the [GIRG](https://github.com/chistopher/girgs) library for generating graphs.
-Unit test are located in [tests](tests/) and use [gtest](https://github.com/google/googletest).
-Moreover, [instances](./instances) includes some small instances for initial
-testing.  The folder [evaluation](./evaluation) contains example data and an [R script](https://en.wikipedia.org/wiki/R_(programming_language)) to visualize it.
-You can use this directory to creat your own plots.
+To also run experiments on generated graphs (not included in the paper, as the results don't give additional insights) run `python experiments.py gen_graph`.
 
-
-## Using the Framework ##
+## Docker and .devcontainer ##
 
 The repository contains a [.devcontainer](.devcontainer/devcontainer.json). If you have [Docker](https://www.docker.com/) installed, [VSCode](https://code.visualstudio.com/) can set up a fully working development environment on your platform inside a Docker container.
 This can be especially useful for students working on windows.
@@ -74,79 +69,4 @@ Test project /home/jeanp/Documents/teaching/praktikum_beating_the_worst_case_fra
 Total Test time (real) =   0.14 sec
 ```
 
-## Graph Features ##
-
-The framework contains a very basic graph data structure; see
-[graph.hpp](framework/include/framework/graph.hpp) for more details.  For
-examples on how to load a graph from a file or how to create a
-subgraph, see [run.cpp](cli/run.cpp).  For an example of how to use
-the graph data structure, see
-[component_structure.cpp](framework/src/component_structure.cpp).
-
-In addition to the graph data structure itself, there is the feature
-of computing the connected components of a graph; see
-[component_structure.hpp](include/framework/component_structure.hpp)
-for more details.  For an example of how to obtain the largest
-connected component of a graph, see [run.cpp](cli/run.cpp).
-
-## Supported Graph Formats ##
-
-The following graph formats are supported. The loader should be able
-to automatically figure out the format.
-
-  * The graph format used by [konect.cc](http://konect.cc/networks/).  
-    (TODO: verify if this still works)
-
-  * The mtx format used by
-    [networkrepository.com](https://networkrepository.com). Note that
-    some graphs on
-    [networkrepository.com](https://networkrepository.com) use a
-    different format, which probably does not work.  There are plenty
-    of graphs in the mtx format though.
-
-  * A basic edge list with two integers per row.  Each integer
-    represents a vertex and each row represents an edge between the
-    two corresponding vertices.
-	
-The command line interface
-[convert_to_edgelist.cpp](cli/convert_to_edgelist.cpp) reads a given
-file and writes it as a basic edge list.
-
-## Run Time Measurements ##
-
-The `Timer` class provides the functionality of having globally
-available named timers.  See [timer.hpp](include/framework/timer.hpp)
-for more details, and [run.cpp](cli/run.cpp) for an example of how to
-use it.
-
-## Parsing Command Line Arguments ##
-
-[CLI11](https://github.com/CLIUtils/CALI11) is used for parsing
-command line arguments.  It also automatically creates a help output;
-for an example, run `./run --help`.  For a very basic example on how
-to use it, see [run.cpp](cli/run.cpp).  Also see the [CLI11 GitHub
-page](https://github.com/CLIUtils/CLI11#usage) for additional
-information on how to use it.
-
-## Running Unit Tests ##
-
-[gtest](https://github.com/google/googletest) is already included in
-the framework, providing easy unit testing.  If you already compiled
-the project, then running `make test` from the `debug` folder will
-run the unit tests and output whether the tests succeeded or failed.
-For an example of how to create test cases, see
-[graph_tests.cpp](test/graph_tests.cpp).
-
-## Adding Your Own Code ##
-
-In addition to adding your header, source, main, and test files, you have to
-tell CMake to use them.  For this, edit the
-[CMakeLists.txt](CMakeLists.txt) files accordingly: 
-  * if you want to add your own command line application add a `.cpp`
-    file to the folder `cli/` and to `set(EXECUTABLE_FILES ...)` in the [cli/CMakeLists.txt](cli/CMakeLists.txt)
-  * if you want to modify the framework, add header and source files to
-    `framework/include/framework` and `framework/src/` and add them to
-    `set(HEADERS ...)` and `set(SOURCE_FILES ...)` in [framework/CMakeLists.txt](framework/CMakeLists.txt)
-  * if you want to add unit test, add them to `test/` and set them in
-    `set(TEST_FILES ...)` in [test/CMakeLists.txt](test/CMakeLists.txt).
 
