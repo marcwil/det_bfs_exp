@@ -4,9 +4,9 @@ from os.path import basename
 
 
 input_files = glob("instances/*.gr")
-medium_real = glob("instances/medium_real/*.edges")
+all_real = glob("instances/edge_lists_real/*")
 real_networks = []
-real_networks += medium_real
+real_networks += all_real
 input_files += real_networks
 girgs = glob("instances/girg/*.edges")
 input_files += girgs
