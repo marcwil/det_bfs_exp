@@ -5,6 +5,7 @@
 #include <cmath>
 
 #include "graph.hpp"
+#include "bibfs.hpp"
 
 // Macro defining all fields
 #define EXPANSION_RESULT_FIELDS \
@@ -66,6 +67,9 @@ struct ExpansionResult
     Y(double, bplus)           \
     Y(unsigned, s)             \
     Y(unsigned, t)             \
+    Y(unsigned, cost_uni_s)     \
+    Y(unsigned, cost_uni_t)     \
+    Y(unsigned, cost_bi)        \
     Y(unsigned, dist)          \
     Y(double, optimal_alpha)   \
     Y(signed, optimal_T1)      \
@@ -114,8 +118,6 @@ private:
     node s;
     node t;
     bool evaluate_rho;
-    std::vector<unsigned> cost_s;
-    std::vector<unsigned> cost_t;
     std::vector<unsigned> cost_s_cum;
     std::vector<unsigned> cost_t_cum;
     std::vector<double> exp_s;
@@ -126,18 +128,20 @@ private:
     unsigned high_prefix_length(double base, std::vector<double> &nums);
     unsigned high_prefix_length_skip(double threshold, std::vector<double> &nums, unsigned skip);
     unsigned cheap_prefix_length(unsigned threshold, std::vector<unsigned> &nums);
-    unsigned uni_cost(std::vector<unsigned> &nums);
-    unsigned bi_cost();
 
 public:
+    std::vector<unsigned> cost_s;
+    std::vector<unsigned> cost_t;
     Expansion(const Graph _g, node _s, node _t, bool evaluate_rho = false);
     signed get_dist();
     ExpansionResult evaluate(double base, double alpha);
     double calc_rho(signed expan_s, signed expan_t, signed cheap_s, signed cheap_t);
     double rho_conv(double param);
-    RhoExpansionResult rho_evaluate(double base);
+    RhoExpansionResult rho_evaluate(double base, double some_alpha=-1.0);
     std::vector<std::vector<unsigned>> compute_layers(node from);
     std::vector<unsigned> layer_costs(std::vector<std::vector<unsigned>> &layers);
+    unsigned uni_cost(std::vector<unsigned> &nums);
+    unsigned bi_cost();
 
     static std::vector<unsigned> cumulative(std::vector<unsigned> &nums);
     friend class ExpansionTest_Eccentricity_Test; // Grant access to the test class

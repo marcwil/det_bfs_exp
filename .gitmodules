@@ -7,3 +7,6 @@
 [submodule "run"]
 	path = ext_libs/run
 	url = https://github.com/thobl/run.git
+[submodule "ext_libs/teexgraph"]
+	path = ext_libs/teexgraph
+	url = https://github.com/franktakes/teexgraph.git

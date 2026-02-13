@@ -127,9 +127,14 @@ ExpansionResult Expansion::evaluate(double base, double alpha)
   double m = this->g.m();
   double cheap = std::pow((double)m, alpha);
 
-  auto cost_uni_s = this->uni_cost(this->cost_s);
-  auto cost_uni_t = this->uni_cost(this->cost_t);
-  auto cost_bi = this->bi_cost();
+  // use BFS and biBFS to get costs, as the internal functions of Expansion count the last layer completely and overestimate the costs
+  auto [uni_dist_s, uni_cost_s] = BFS::search(this->g, s, t);
+  auto [uni_dist_t, uni_cost_t] = BFS::search(this->g, t, s);
+  auto [bi_dist, bi_cost] = biBFS::search(this->g, s, t);
+
+  auto cost_uni_s = uni_cost_s;
+  auto cost_uni_t = uni_cost_t;
+  auto cost_bi = bi_cost;
 
   // num of "cheap" exploration steps (>= 0)
   auto cheap_s_len = cheap_prefix_length(cheap, this->cost_s);
@@ -210,8 +215,21 @@ double Expansion::rho_conv(double param)
   return 1.0 / (1.0 + param);
 }
 
-RhoExpansionResult Expansion::rho_evaluate(double base)
+/**
+ * Evaluate the expansion with the given base and alpha values.
+ * If some_alpha is -1.0, the optimal alpha value is found.
+ * Otherwise, the given alpha value is used.
+ */
+RhoExpansionResult Expansion::rho_evaluate(double base, double some_alpha)
 {
+  // use BFS and biBFS to get costs, as the internal functions of Expansion count the last layer completely and overestimate the costs
+  auto [uni_dist_s, uni_cost_s] = BFS::search(this->g, s, t);
+  auto [uni_dist_t, uni_cost_t] = BFS::search(this->g, t, s);
+  auto [bi_dist, bi_cost] = biBFS::search(this->g, s, t);
+  auto cost_uni_s = uni_cost_s;
+  auto cost_uni_t = uni_cost_t;
+  auto cost_bi = bi_cost;
+
   // calculate expan_s and expan_t
   signed expan_s = static_cast<signed>(high_prefix_length(base, this->exp_s));
   expan_s = std::min(expan_s, this->dist);
@@ -223,51 +241,146 @@ RhoExpansionResult Expansion::rho_evaluate(double base)
   double bplus_t = *std::max_element(this->exp_t.begin(), this->exp_t.begin() + this->dist);
   double bplus = std::max(bplus_s, bplus_t);
 
-  RhoExpansionResult opt;
-  opt.b = base;
-  opt.bplus = bplus;
-  opt.s = this->s;
-  opt.t = this->t;
-  opt.dist = this->dist;
-  opt.optimal_alpha = 0.0;
-  opt.optimal_S1 = 0;
-  opt.optimal_S2 = 0;
-  opt.optimal_T1 = 0;
-  opt.optimal_T2 = 0;
-  opt.optimal_cheap_s = 0;
-  opt.optimal_cheap_t = 0;
+  RhoExpansionResult res;
+  res.b = base;
+  res.bplus = bplus;
+  res.s = this->s;
+  res.t = this->t;
+  res.cost_uni_s = cost_uni_s;
+  res.cost_uni_t = cost_uni_t;
+  res.cost_bi = cost_bi;
+  res.dist = this->dist;
+  res.optimal_alpha = 0.0;
+  res.optimal_S1 = 0;
+  res.optimal_S2 = 0;
+  res.optimal_T1 = 0;
+  res.optimal_T2 = 0;
+  res.optimal_cheap_s = 0;
+  res.optimal_cheap_t = 0;
   // rho and rhomax are already converted to [0, 1]
-  opt.optimal_rho = 0;
-  opt.optimal_rhomax = 0;
+  res.optimal_rho = 0;
+  res.optimal_rhomax = 0;
 
-  signed current_cheap_s = 0;
-  signed current_cheap_t = 0;
-  double optimal_rhodiff = -std::numeric_limits<double>::infinity();
-
-  while (current_cheap_s + current_cheap_t <= this->dist)
+  if (some_alpha == -1.0) // find optimal alpha
   {
-    unsigned cum_s = cost_s_cum[current_cheap_s];
-    unsigned cum_t = cost_t_cum[current_cheap_t];
+    signed current_cheap_s = 0;
+    signed current_cheap_t = 0;
+    double optimal_rhodiff = -std::numeric_limits<double>::infinity();
 
-    double alpha_s = 0;
-    if (cum_s > 0)
-      alpha_s = std::log(cum_s) / std::log(this->g.m());
+    while (current_cheap_s + current_cheap_t <= this->dist)
+    {
+      unsigned cum_s = cost_s_cum[current_cheap_s];
+      unsigned cum_t = cost_t_cum[current_cheap_t];
 
-    double alpha_t = 0;
-    if (cum_t > 0)
-      alpha_t = std::log(cum_t) / std::log(this->g.m());
-    double alpha = std::max(alpha_s, alpha_t);
+      double alpha_s = 0;
+      if (cum_s > 0)
+        alpha_s = std::log(cum_s) / std::log(this->g.m());
+
+      double alpha_t = 0;
+      if (cum_t > 0)
+        alpha_t = std::log(cum_t) / std::log(this->g.m());
+      double alpha = std::max(alpha_s, alpha_t);
+
+      signed S1 = expan_s; // std::max(expan_s, current_cheap_s);
+      signed T1 = expan_t; // std::max(expan_t, current_cheap_t);
+
+      signed S2 = this->dist - S1 - current_cheap_t;
+      signed T2 = this->dist - T1 - current_cheap_s;
+
+      signed high2 = std::max(S2, T2);
+      signed low1 = std::min(S1, T1);
+
+      double ratio = this->calc_rho(expan_s, expan_t, current_cheap_s, current_cheap_t);
+      double converted = this->rho_conv(ratio);
+      if (low1 == 0)
+      {
+        converted = 0.0;
+      }
+      if (high2 <= 0)
+      {
+        converted = 1.0;
+      }
+
+      double base_logratio = std::log(bplus) / std::log(base);
+      double max_ratio = (1.0 - alpha) / (1.0 - alpha + alpha * base_logratio);
+      double converted_max = this->rho_conv(max_ratio);
+      double diff = converted - converted_max;
+
+      if (diff > optimal_rhodiff)
+      {
+        res.optimal_alpha = alpha;
+        res.optimal_S1 = S1;
+        res.optimal_S2 = S2;
+        res.optimal_T1 = T1;
+        res.optimal_T2 = T2;
+        res.optimal_cheap_s = current_cheap_s;
+        res.optimal_cheap_t = current_cheap_t;
+        res.optimal_rho = converted;
+        res.optimal_rhomax = converted_max;
+        optimal_rhodiff = diff;
+      }
+
+      if (cost_s[current_cheap_s] <= cost_t[current_cheap_t])
+        current_cheap_s++;
+      else
+        current_cheap_t++;
+
+      if (res.optimal_rho == -std::numeric_limits<double>::infinity())
+      {
+        std::cerr << "optimal_rho is -infinity" << std::endl;
+
+        // print opt
+        std::cerr << "opt.b: " << res.b << std::endl;
+        std::cerr << "opt.bplus: " << res.bplus << std::endl;
+        std::cerr << "opt.s: " << res.s << std::endl;
+        std::cerr << "opt.t: " << res.t << std::endl;
+        std::cerr << "opt.dist: " << res.dist << std::endl;
+        std::cerr << "opt.optimal_alpha: " << res.optimal_alpha << std::endl;
+        std::cerr << "opt.optimal_S1: " << res.optimal_S1 << std::endl;
+        std::cerr << "opt.optimal_S2: " << res.optimal_S2 << std::endl;
+        std::cerr << "opt.optimal_T1: " << res.optimal_T1 << std::endl;
+        std::cerr << "opt.optimal_T2: " << res.optimal_T2 << std::endl;
+        std::cerr << "opt.optimal_cheap_s: " << res.optimal_cheap_s << std::endl;
+        std::cerr << "opt.optimal_cheap_t: " << res.optimal_cheap_t << std::endl;
+        std::cerr << "opt.optimal_rho: " << res.optimal_rho << std::endl;
+        std::cerr << "opt.optimal_rhomax: " << res.optimal_rhomax << std::endl;
+        std::cerr << "optimal_rhodiff: " << optimal_rhodiff << std::endl;
+        std::cerr << "cost_s: ";
+        for (auto c : cost_s)
+          std::cerr << c << " ";
+        std::cerr << std::endl;
+        std::cerr << "cost_t: ";
+        for (auto c : cost_t)
+          std::cerr << c << " ";
+        std::cerr << std::endl;
+
+        exit(1);
+      }
+    }
+  }
+  else // use given alpha
+  {
+    double alpha = some_alpha;
+    double cheap_cost = std::pow((double)this->g.m(), alpha);
+
+    signed cheap_s = 0;
+    while (cheap_s + 1 < this->dist && cost_s_cum[cheap_s + 1] <= cheap_cost)
+      cheap_s++;
+
+    signed cheap_t = 0;
+    while (cheap_t + 1 < this->dist && cost_t_cum[cheap_t + 1] <= cheap_cost)
+      cheap_t++;
 
     signed S1 = expan_s; // std::max(expan_s, current_cheap_s);
     signed T1 = expan_t; // std::max(expan_t, current_cheap_t);
 
-    signed S2 = this->dist - S1 - current_cheap_t;
-    signed T2 = this->dist - T1 - current_cheap_s;
+    signed S2 = this->dist - S1 - cheap_t;
+    signed T2 = this->dist - T1 - cheap_s;
 
     signed high2 = std::max(S2, T2);
     signed low1 = std::min(S1, T1);
 
-    double ratio = this->calc_rho(expan_s, expan_t, current_cheap_s, current_cheap_t);
+    double ratio = this->calc_rho(expan_s, expan_t, cheap_s, cheap_t);
     double converted = this->rho_conv(ratio);
     if (low1 == 0)
     {
@@ -283,59 +396,18 @@ RhoExpansionResult Expansion::rho_evaluate(double base)
     double converted_max = this->rho_conv(max_ratio);
     double diff = converted - converted_max;
 
-    if (diff > optimal_rhodiff)
-    {
-      opt.optimal_alpha = alpha;
-      opt.optimal_S1 = S1;
-      opt.optimal_S2 = S2;
-      opt.optimal_T1 = T1;
-      opt.optimal_T2 = T2;
-      opt.optimal_cheap_s = current_cheap_s;
-      opt.optimal_cheap_t = current_cheap_t;
-      opt.optimal_rho = converted;
-      opt.optimal_rhomax = converted_max;
-      optimal_rhodiff = diff;
-    }
-
-    if (cost_s[current_cheap_s] <= cost_t[current_cheap_t])
-      current_cheap_s++;
-    else
-      current_cheap_t++;
+    res.optimal_alpha = alpha;
+    res.optimal_S1 = S1;
+    res.optimal_S2 = S2;
+    res.optimal_T1 = T1;
+    res.optimal_T2 = T2;
+    res.optimal_cheap_s = cheap_s;
+    res.optimal_cheap_t = cheap_t;
+    res.optimal_rho = converted;
+    res.optimal_rhomax = converted_max;
   }
 
-  if (opt.optimal_rho == -std::numeric_limits<double>::infinity())
-  {
-    std::cerr << "optimal_rho is -infinity" << std::endl;
-
-    // print opt
-    std::cerr << "opt.b: " << opt.b << std::endl;
-    std::cerr << "opt.bplus: " << opt.bplus << std::endl;
-    std::cerr << "opt.s: " << opt.s << std::endl;
-    std::cerr << "opt.t: " << opt.t << std::endl;
-    std::cerr << "opt.dist: " << opt.dist << std::endl;
-    std::cerr << "opt.optimal_alpha: " << opt.optimal_alpha << std::endl;
-    std::cerr << "opt.optimal_S1: " << opt.optimal_S1 << std::endl;
-    std::cerr << "opt.optimal_S2: " << opt.optimal_S2 << std::endl;
-    std::cerr << "opt.optimal_T1: " << opt.optimal_T1 << std::endl;
-    std::cerr << "opt.optimal_T2: " << opt.optimal_T2 << std::endl;
-    std::cerr << "opt.optimal_cheap_s: " << opt.optimal_cheap_s << std::endl;
-    std::cerr << "opt.optimal_cheap_t: " << opt.optimal_cheap_t << std::endl;
-    std::cerr << "opt.optimal_rho: " << opt.optimal_rho << std::endl;
-    std::cerr << "opt.optimal_rhomax: " << opt.optimal_rhomax << std::endl;
-    std::cerr << "optimal_rhodiff: " << optimal_rhodiff << std::endl;
-    std::cerr << "cost_s: ";
-    for (auto c : cost_s)
-      std::cerr << c << " ";
-    std::cerr << std::endl;
-    std::cerr << "cost_t: ";
-    for (auto c : cost_t)
-      std::cerr << c << " ";
-    std::cerr << std::endl;
-
-    exit(1);
-  }
-
-  return opt;
+  return res;
 }
 
 unsigned Expansion::uni_cost(std::vector<unsigned> &nums)

@@ -1,6 +1,10 @@
 # Deterministic BFS Experiments #
 
-This repository contains the code for the experiments section of the paper **Deterministic Performance Guarantees for Bidirectional BFS on Real-World Networks**, [published at IWOCA 2023](https://link.springer.com/chapter/10.1007/978-3-031-34347-6_9).
+This repository contains the code for the experiments section of the paper
+**Deterministic Performance Guarantees for Bidirectional BFS on Real-World
+Networks**, [published at IWOCA
+2023](https://link.springer.com/chapter/10.1007/978-3-031-34347-6_9) and the
+[JCSS Special Isssue for IWOCA'23](https://doi.org/10.1016/j.jcss.2026.103774).
 See also the ArXiv version [here](https://arxiv.org/abs/2209.15300).
 
 To reproduce the experiments, follow the following steps:
@@ -40,6 +44,7 @@ To reproduce the experiments, follow the following steps:
     WARNING: Did not try to run experiments as none were passed via the command line.
   ```
 - go to `evaluation` and run `plot_for_paper.R` to create the plots in the paper (and a few more)
+- further, run `new_notebook.Rmd` to create the plots in the journal version
 
 To also run experiments on generated graphs (not included in the paper, as the results don't give additional insights) run `python experiments.py gen_graph`.
 

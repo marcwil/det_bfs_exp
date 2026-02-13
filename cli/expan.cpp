@@ -54,6 +54,9 @@ int main(int argc, char **argv)
   bool rho_eval = false;
   app.add_flag("--rhoeval", rho_eval, "Evaluate optimal rho");
 
+  bool opt_rho = false;
+  app.add_flag("--optimalrho", opt_rho, "Evaluate optimal rho, otherwise use given alpha");
+
   if (argc == 1)
   {
     file_name = "../../instances/medium_real/inf-openflights.edges";
@@ -90,6 +93,7 @@ int main(int argc, char **argv)
   ComponentStructure CS(G);
 
   Graph H(G, CS.nodes_of_component(CS.largest_component()));
+  //Random::set_seed(192346);
 
   for (unsigned int i = 0; i < samples; i++)
   {
@@ -105,8 +109,19 @@ int main(int argc, char **argv)
     {
       for (auto base : bases)
       {
-        auto res = exp.rho_evaluate(base);
-        std::cout << res.toCSVString() << std::endl;
+        if (opt_rho)
+        {
+          auto res = exp.rho_evaluate(base);
+          std::cout << res.toCSVString() << std::endl;
+        }
+        else
+        {
+          for (auto alpha : alphas)
+          {
+            auto res = exp.rho_evaluate(base, alpha);
+            std::cout << res.toCSVString() << std::endl;
+          }
+        }
       }
     }
     else
@@ -120,7 +135,6 @@ int main(int argc, char **argv)
         }
       }
     }
-
   }
 
   return 0;

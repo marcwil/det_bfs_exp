@@ -1,0 +1,191 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+**Run `plot_for_paper.R` first**
+
+# Analyze validity of measuring running time vs cost
+```{r}
+perftest <- tibble(read.csv("../output/perftest_merged.csv"))
+
+perf_df <- perftest %>%
+  full_join(stats, by="graph")
+```
+
+
+Relationship between cost and time on some networks
+```{r}
+network_selection <- c( "coAuthorsDBLP.edges", "ca-citeseer.edges", "soc-twitter-follows.edges", "language.edges", "road-usroads.edges", "bio-grid-yeast.edges", "08blocks.edges")
+
+perf_df %>%
+  filter(graph %in% network_selection) %>%
+  #filter(graph != "language.edges" | cost < 100) %>%
+  ggplot(aes(x=cost,y=time)) +
+  geom_point(alpha=0.3) +
+  facet_wrap(~graph, scale = "free")
+
+perf_df %>%
+  filter(graph %in% network_selection) %>%
+  group_by(graph) %>%
+  summarize(cor = cor(time, cost))
+```
+
+Let's look into 08blocks.edges a bit more closely!
+```{r}
+perf_df %>%
+  filter(graph == "08blocks.edges") %>%
+  filter(time < 0.001) %>%
+  ggplot(aes(x=cost,y=time)) +
+  geom_point(alpha=0.3) +
+  labs(title = "only for time < 0.001")
+
+perf_df %>%
+  filter(graph == "08blocks.edges") %>%
+  filter(time < 0.001) %>%
+  summarise(correlation = cor(time, cost))
+```
+
+
+**Question:** what about the cost-time relationship over all networks?
+
+```{r}
+perfdf_avg <- perftest %>%
+  group_by(graph) %>%
+  summarise(dist=mean(dist),
+            cost=mean(cost),
+            time=mean(time),
+           ) %>%
+  full_join(stats, by="graph")
+
+perfdf_avg %>%
+  ggplot(aes(x=time,y=cost)) +
+  geom_point()
+
+print("Correlation across networks between average cost and average time:")
+print(cor(perfdf_avg$time, perfdf_avg$cost))
+
+corr_df <- perftest %>%
+  group_by(graph) %>%
+  summarize(correlation = cor(time, cost))
+
+print("Correlation per network, summary:")
+corr_df %>% select(correlation) %>% summary
+
+corr_df %>%
+  ggplot(aes(x = correlation)) +
+  geom_density()
+
+corr_df %>%
+  left_join(stats)%>%
+  ggplot(aes(x=n,y=correlation)) +
+  geom_hex() +
+  scale_x_log10() +
+  labs(
+    title = "Correlation coefficient between time and cost per network",
+    x = "n",
+    y = "Correlation coefficient between time and cost"
+  )
+```
+
+# How good is the exponent estimation?
+
+```{r}
+fit_power_law_from_plot <- function(plot_obj) {
+  # Extract the original data from the plot object
+  plot_data <- plot_obj$data
+
+  # Extract the variables from the aes mapping (x, y, color)
+  mapping <- plot_obj$mapping
+  x_var <- as_label(mapping$x)
+  y_var <- as_label(mapping$y)
+  color_var <- as_label(mapping$colour)
+
+  # Use ggplot_build to get the color assignments
+  plot_build <- ggplot_build(plot_obj)
+  plot_colors <- unique(plot_build$data[[1]]$colour)  # Extract colors from the second layer (geom_point layer)
+
+  # Ensure that the length of the colors matches the groups
+  unique_groups <- unique(plot_data[[color_var]])
+
+  if (length(plot_colors) != length(unique_groups)) {
+    print(unique_groups)
+    print(plot_colors)
+    stop("Number of colors doesn't match the number of unique groups. Something went wrong.")
+  }
+
+  # Prepare a list to store the fitted lines
+  fitted_lines <- list()
+
+  for (i in seq_along(unique_groups)) {
+    group <- unique_groups[i]
+
+    # Filter data for the current group
+    group_data <- plot_data %>%
+      filter(.data[[color_var]] == group)
+
+    # Fit the power-law model on log-transformed data
+    fit <- lm(log10(group_data[[y_var]]) ~ log10(group_data[[x_var]]))
+
+    # Extract coefficients
+    coefficients <- coef(fit)
+    intercept <- 10^coefficients[1]  # Back-transform intercept to original scale
+    slope <- coefficients[2]         # Slope (exponent)
+
+    # Print the coefficients and suspected power-law function
+    print(paste("Group:", group))
+    print(paste("Coefficient a:", intercept))
+    print(paste("Exponent b:", slope))
+    equation <- paste0("y = ", round(intercept, 3), " * x^", round(slope, 3))
+    print(paste("The suspected function for", group, "is:", equation))
+
+    # Create a fitted line using the extracted color for this group
+    group_color <- plot_colors[i]
+    fitted_lines[[i]] <- geom_abline(intercept = log10(intercept), slope = slope, color = group_color, linetype = "dashed")
+  }
+
+  # Return the fitted lines as a list of geom_abline layers
+  return(fitted_lines)
+}
+
+```
+
+
+```{r}
+
+meancost_df <- perf_df %>%
+  filter(girg_scale) %>%
+  left_join(girg_stats) %>%
+  mutate(ple = as.factor(ple)) %>%
+  group_by(n_gen, ple, temp, sample) %>%
+  summarise(
+    cost = mean(cost)
+  ) %>%
+  summarise(
+    cost = mean(cost)
+  ) %>%
+  filter(temp==0.1) %>%
+  ungroup()
+
+plot<-meancost_df %>%
+  ggplot(aes(x = n_gen, y = cost, color = ple)) +
+  geom_point() +
+  scale_x_log10() + scale_y_log10() + annotation_logticks()
+
+lines <- fit_power_law_from_plot(plot)
+
+plot+lines
+
+meancost_df %>%
+  mutate(
+    est_exp = log(cost) / log(5*n_gen),
+  ) %>%
+  ggplot(aes(x = n_gen, y = est_exp, color = ple)) +
+  geom_point() +
+  scale_x_log10() + annotation_logticks() +
+  geom_smooth(method='lm')
+
+
+
+```
+

@@ -1,0 +1,1422 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Data Loading
+```{r}
+source("helper.R")
+library(ggpattern)
+library(english)
+library(knitr)
+library(cutpointr)  
+
+lab_estexp <- TeX("Estimated exp. $x = \\log_m\\,c$ (avg.)")
+lab_expover <- TeX("avg. rel. exp. overlap $\\bar{\\gamma}$") #TeX("$\\gamma = $ expansion overlap /$~d_\\alpha(s,t)$")
+
+realnames <- tibble(read.csv("../output/realnames.csv"))
+
+print("Reading stats csv file..")
+stats <- tibble(read.csv("../output/stats_merged.csv"))
+stats <- stats %>%
+  mutate(
+    girg = startsWith(graph, "girg"),
+    girg_scale = startsWith(graph, "scale"),
+    real = !girg & !girg_scale,
+    tree = m == (n - 1),
+    sparse = avgdeg < 100,
+    #interesting = real & !tree & sparse,
+    interesting = real,
+    locality = (local_clustering + global_clustering + distance_locality) /3,
+    locality2 = (local_clustering + distance_locality) / 2
+  )
+stats
+
+from_wrong_website <- setdiff(stats %>% filter(real) %>% pull(graph), realnames$graph)
+stats <- stats %>%
+  filter(!graph %in% from_wrong_website)
+
+diam <- tibble(read.csv("../output/teex_diameter.csv")) %>%
+  filter(!graph %in% from_wrong_website) %>%
+  select(graph, diameter)
+stats <- stats %>% left_join(diam)
+
+girg_stats <- stats %>%
+  filter(girg | girg_scale) %>%
+  extract(
+    col = graph,
+    into = c("n_gen", "ple", "temp", "deg", "sample"),
+    regex = "scale(\\d+)_([\\d\\.]+)_(\\d+(?:\\.\\d+)?)_(\\d+)_(\\d+)\\.edges",
+    remove = FALSE,
+    convert = TRUE
+  )
+
+#expan_raw <- tibble(read.csv("../output/expan_merged.csv"))
+print("Creating expan table.")
+expan_raw <- tibble(read.csv("../output/expan_merged.csv")) %>%
+  filter(!graph %in% from_wrong_website) %>%
+  filter(alpha != 0.05) %>%
+  left_join(stats%>%select(graph, m), by = "graph") %>%
+  mutate(
+    # relative overlap theorem
+    overlap_relative = overlap / dist,
+    relevant_overlap_rel = if_else(rel_dist <= 0, 1, overlap / rel_dist),
+    relevant_overlap_rel = pmin(1, pmax(-1, relevant_overlap_rel)),
+    wc_exponent = pmax(0,
+                       pmin(1,
+                            1 -
+                            (relevant_overlap_rel*(1-alpha) / (log(bplus) / log(b) + relevant_overlap_rel))
+                            )
+                       ),
+    thm4c = relevant_overlap_rel / (log(m)/log(2)),
+    thm4_wcexp = pmax(0, pmin(1, 1-thm4c/2)),
+    cost_uni = (cost_uni_s+cost_uni_t)/2,
+    bi_exp_m = log(cost_bi) / log(m),
+    bi_exp_uni = log(cost_bi) / log(cost_uni),
+    uni_exp_m = log(cost_uni) / log(m),
+    high2 = pmax(S2, T2),
+    low1 = pmin(S1, T1),
+    rho = if_else(low1 == 0 & high2 == 0, 0,  high2 / low1),
+    rho = if_else(rho < 0, 0, rho),
+    rho_thresh = (1-alpha) / (1-alpha+(alpha * log(bplus) / log(b))),
+    delta_rho = log(rho_thresh) - log(rho),
+  )
+
+expan <- expan_raw %>% 
+  group_by(b, alpha, graph) %>%
+   summarise(
+     num_div0by0 = sum(low1==0 & high2 == 0),
+     across(c(rho, rho_thresh,delta_rho), median, .names = "median_{.col}"),
+     across(-c(median_rho, median_rho_thresh, median_delta_rho, num_div0by0), mean),
+     .groups = "drop"
+   ) %>%
+  left_join(stats %>% select(!m), by = "graph")
+
+
+gc()
+
+print("Reading rho_expan_merged.csv")
+#rho_expan_raw <- tibble(read.csv('../output/rho_expan_merged.csv'))
+# rho_expan_opt <- tibble(read.csv('../output/rho_expan_merged.csv')) %>% #rho_expan_raw %>%
+#    group_by(graph, b) %>%
+#    left_join(stats%>%select(graph, m), by = "graph") %>%
+#    mutate(
+#      cost_uni = (cost_uni_s+cost_uni_t)/2,
+#      bi_exp_m = log(cost_bi) / log(m),
+#      bi_exp_uni = log(cost_bi) / log(cost_uni),
+#      uni_exp_m = log(cost_uni) / log(m),
+#      high2 = max(optimal_S2,optimal_T2),
+#      low1 = min(optimal_S1, optimal_T1),
+#      rho = if_else(low1 == 0 & high2 == 0, 0,  high2 / low1),
+#      rho_thresh = (1-optimal_alpha) / (1-optimal_alpha+optimal_alpha * log(bplus) / log(b))
+#    ) %>%
+#    summarise(across(everything(), mean)) %>%
+#    mutate(
+#      delta_rho = optimal_rho-optimal_rhomax
+#    ) %>%
+#    left_join(stats%>%select(!m), by = "graph")
+
+# rho_expan_raw <- tibble(read.csv('../output/rho_alpha_expan_merged.csv')) %>% #rho_expan_raw %>%
+#   rename(alpha = optimal_alpha)
+# 
+# rho_expan <- rho_expan_raw %>%
+#   group_by(graph, b, alpha) %>%
+#   left_join(stats%>%select(graph, m), by = "graph") %>%
+#   mutate(
+#     cost_uni = (cost_uni_s+cost_uni_t)/2,
+#     bi_exp_m = log(cost_bi) / log(m),
+#     bi_exp_uni = log(cost_bi) / log(cost_uni),
+#     uni_exp_m = log(cost_uni) / log(m),
+#     high2 = max(optimal_S2,optimal_T2),
+#     low1 = min(optimal_S1, optimal_T1),
+#     rho = if_else(low1 == 0 & high2 == 0, 0,  high2 / low1),
+#     rho_converted = 1/(1+rho),
+#     rho_thresh = (1-alpha) / (1-alpha+(alpha * log(bplus) / log(b))),
+#     thresh_converted = 1/(1+rho),
+#   ) %>%
+#   summarise(across(everything(), mean)) %>%
+#   mutate(
+#     delta_rho = optimal_rho-optimal_rhomax
+#   ) %>%
+#   left_join(stats%>%select(!m), by = "graph")
+
+gc()
+```
+
+
+```{r}
+some_b <- 2
+some_alpha <- 0
+```
+
+
+
+
+# Infrastructure for latex
+```{r}
+roundnum <- function(num, digits) {
+  format(round(num, digits), nsmall = digits)
+}
+
+store_result <- function(list_name, identifier, value, digits = 2) {
+  # Get the name of the list as a string
+  list_name_str <- deparse(substitute(list_name))
+  
+  # Format the value
+  formatted_value <- roundnum(value, digits)
+  
+  # Get the list from the parent frame and modify it
+  list_obj <- get(list_name_str, envir = parent.frame())
+  list_obj[[identifier]] <- formatted_value
+  
+  # Assign the modified list back to the parent environment
+  assign(list_name_str, list_obj, envir = parent.frame())
+}
+
+# Function to write results to a LaTeX file
+write_latex_vars <- function(list_name, filename = "output.tex/eval_statistics.tex") {
+  # Get the list
+  list_obj <- get(deparse(substitute(list_name)), envir = parent.frame())
+  
+  # Create directory if it doesn't exist
+  dir_path <- dirname(filename)
+  if (dir_path != "." && !dir.exists(dir_path)) {
+    dir.create(dir_path, recursive = TRUE)
+  }
+  
+  latex_lines <- sapply(names(list_obj), function(id) {
+    paste0("\\newcommand{\\", id, "}{", list_obj[[id]], "}")
+  })
+  
+  writeLines(latex_lines, filename)
+}
+  
+results_list <- list()
+store_result(results_list, "numRealNetworks", length(stats %>% filter(real) %>% pull(graph) %>% unique), 0)
+store_result(results_list, "numGIRGS", length(stats %>% filter(girg_scale) %>% pull(graph) %>% unique), 0)
+write_latex_vars(results_list)
+
+# Example usage:
+# store_result("testvar", 0.87)
+# write_latex_vars()
+```
+
+
+# Statistics of classifiers
+```{r}
+# Function to compute metrics
+compute_metrics <- function(x, y) {
+  tp <- sum(y == 1 & x == 1)
+  fp <- sum(y == 0 & x == 1)
+  fn <- sum(y == 1 & x == 0)
+  tn <- sum(y == 0 & x == 0)
+
+  precision <- ifelse(tp + fp > 0, tp / (tp + fp), 0)
+  recall <- ifelse(tp + fn > 0, tp / (tp + fn), 0)
+  accuracy <- (tp + tn) / (tp + fp + fn + tn)
+  f1 <- ifelse(precision + recall > 0, 2 * (precision * recall) / (precision + recall), 0)
+
+  tibble(f1, precision, recall, accuracy)
+}
+
+compute_metrics_cutoff <- function(cutoff, df, target_col, binary_pred, target_fun) {
+  binary_target <- target_fun(df[[target_col]], cutoff) # Apply custom target function
+  compute_metrics(binary_pred, binary_target) %>%
+    mutate(cutoff = cutoff)
+}
+
+
+find_optimal_cutoff <- function(df, predictor_col, target_col, cutoffs = seq(0, 1, by = 0.001),
+                                prediction_fun = function(x) x > 0,
+                                target_fun = function(y, thresh) y < thresh) {
+  # Precompute predictor-based binary classification using custom function
+  binary_pred <- as.integer(prediction_fun(df[[predictor_col]]))
+
+  # Compute all cutoffs efficiently
+  results <- map_dfr(cutoffs, ~compute_metrics_cutoff(.x, df, target_col, binary_pred, target_fun))
+  
+  best <- results %>%
+    slice_max(f1, with_ties = TRUE) %>%
+    slice_max(accuracy, with_ties = TRUE) %>%
+    slice_min(cutoff, with_ties = FALSE)
+  best_cutoff <- best %>% pull(cutoff)
+  best_f1 <- best %>% pull(f1)
+  best_acc <- best %>% pull(accuracy)
+  
+  return(list(cutoff = best_cutoff, f1 = best_f1, acc = best_acc, results = results))
+}
+```
+
+
+# Thm 6 Section 4.2
+
+```{r}
+grouped_exp_scores <- expan %>%
+  filter(interesting) %>%
+  group_by(alpha, b) %>%
+  nest() %>%
+  mutate(
+    optimal_cutoff = map(data, ~find_optimal_cutoff(.x, predictor_col = "relevant_overlap_rel", target_col = "bi_exp_m"))
+  ) %>%
+  unnest_wider(c(optimal_cutoff)) %>%
+  select(-results, -data)
+
+thm6list = list()
+thm6_score_pick <- grouped_exp_scores %>% filter(alpha == 0.1, b == 2)
+thm6_score_cutoff = thm6_score_pick %>% pull(cutoff)
+thm6_score_f1 = thm6_score_pick %>% pull(f1)
+thm6_score_acc = thm6_score_pick %>% pull(acc)
+store_result(thm6list, "thmSixPickCutoff", thm6_score_cutoff, 2)
+store_result(thm6list, "thmSixPickFOne", thm6_score_f1, 3)
+store_result(thm6list, "thmSixPickAccuracy", thm6_score_acc, 3)
+write_latex_vars(thm6list, "output.tex/thmSixList.tex")
+
+
+# overlap histogram real world networks
+expan %>%
+  filter(interesting) %>%
+  filter(b==some_b, alpha==some_alpha) %>%
+  mutate(exp_class = cut(
+            bi_exp_m,
+            breaks = c(0, thm6_score_cutoff, 2),
+            labels = c(paste0("<",thm6_score_cutoff), paste0("≥",thm6_score_cutoff))
+          )) %>%
+    ggplot(aes(
+      relevant_overlap_rel,
+      fill=exp_class
+    )) +
+    geom_histogram(bins=30,alpha=0.8,position="identity") +
+    scale_fill_viridis_d() +
+    theme(
+    legend.position = "top",
+    legend.spacing = unit(0, "cm"),
+    legend.margin = margin(0,0,0,0, "cm"),
+    legend.box.margin = margin(0,0,0,0, "cm"),
+    legend.box.spacing = unit(0.05, "cm"),
+    ) + 
+    labs(
+      x = lab_expover,
+      y = "Number of networks",
+      fill = "Est. exponent"
+    )
+create_pdf('output.pdf/overlap_hist_real.pdf', last_plot(), width = 0.45, height = 0.4)
+
+# Plot overlap on interesting real networks
+expan %>%
+  filter(interesting) %>%
+  filter(b==some_b, alpha==some_alpha) %>%
+  ggplot(aes(x=relevant_overlap_rel, y=bi_exp_m)) +
+  geom_hex(bins=15, color="lightgray") +
+  theme(
+    legend.position = "top",
+  legend.spacing = unit(0, "cm"),
+  legend.margin = margin(0,0,0,0, "cm"),
+  legend.box.margin = margin(0,0,0,0, "cm"),
+  legend.box.spacing = unit(0.05, "cm"),
+  legend.key.size = unit(0.4, "cm"),
+  legend.key.height = unit(0.2, "cm")
+  ) + 
+  labs(
+    x = lab_expover,
+    y = lab_estexp
+  ) +
+  scale_fill_gradient2("Number of networks")
+
+create_pdf('output.pdf/overlap_hex_real.pdf', last_plot(), width=0.45,height=0.4)
+```
+
+## Table
+```{r}
+
+# table
+# new
+# Prepare the table data
+thm6_tab_ab <- grouped_exp_scores %>%
+  mutate(alpha = paste0("$", alpha, "$")) %>%
+  summarise(f1 = paste0("$", roundnum(f1, 3), "$"), cutoff = paste0("$", roundnum(cutoff, 3), "$")) %>%
+  pivot_wider(names_from = b, values_from = c(f1, cutoff)) %>%
+  rename("$\\alpha$" = alpha)
+
+# Create the xtable object
+thm6_xtable <- xtable(thm6_tab_ab, 
+                      caption = "Summary of F1-score for binary classifier predicting small ($\\le \\mathrm{cutoff}$) estimated exponent based on positive expansion overlap for different values of $\\alpha$ and $b$.",
+                      label = "thm6_scores_table",
+                      align = "llllllllllll")
+
+# Define a custom multi-row header
+custom_header <- list()
+custom_header$pos <- list(0)
+custom_header$command <- paste(
+  "$\\alpha$ & \\multicolumn{5}{c}{F1-score, varying $b$} & \\multicolumn{5}{c}{Cutoff for est. exp., varying $b$} \\\\",
+  "\\cmidrule(lr){2-6}",
+  "\\cmidrule(lr){7-11}",
+  "& $1.1$ & $1.25$ & $1.5$ & $2$ & $4$ & $1.1$ & $1.25$ & $1.5$ & $2$ & $4$ \\\\",
+  sep = "\n"
+)
+
+# Print the LaTeX table with the modified header
+thm6_latex_table <- print(thm6_xtable, 
+                          table.placement = "",
+                          caption.placement = "top",
+                          include.rownames = FALSE, 
+                          include.colnames = FALSE, 
+                          sanitize.text.function = identity, 
+                          booktabs = TRUE, 
+                          add.to.row = custom_header,
+                          size="\\small")
+thm6_latex_table <- gsub("lllllllllll", "@{}lllllllllll@{}", thm6_latex_table, fixed = TRUE)
+
+# Write the output to a LaTeX file
+writeLines(thm6_latex_table, "output.tex/thmSixTable.tex")
+```
+
+
+
+# Theorem 12 Section 4.2
+```{r}
+rho_inf = 3.5
+rho_minusinf = -10
+expan_rho = expan %>%
+  mutate(
+    median_delta_rho2 = ifelse(median_delta_rho == Inf,
+                        rho_inf,
+                        ifelse(median_delta_rho==-Inf,
+                               rho_minusinf,
+                               median_delta_rho)
+                        ),
+    rhomod = is.infinite(median_delta_rho),
+  )
+
+expan_rho %>%
+  filter(real)%>%
+  filter(alpha == some_alpha, b == some_b) %>%
+  ggplot(aes(x=median_delta_rho2, y = bi_exp_m,color=rhomod)) +
+  geom_hex(bins=15) + #,color="lightgray") +
+  scale_fill_gradient2() +
+  scale_color_manual(values = c("FALSE" = "lightgray", "TRUE" = "#E41A1C")) +
+  guides(color = "none") +
+  theme(
+    legend.position = "top",
+    legend.spacing = unit(0, "cm"),
+    legend.margin = margin(0,0,0,0, "cm"),
+    legend.box.margin = margin(0,0,0,0, "cm"),
+    legend.box.spacing = unit(0.05, "cm"),
+    legend.key.size = unit(0.4, "cm"),
+    legend.key.height = unit(0.2, "cm")
+  ) +
+#  scale_x_log10(breaks = c(1e-5, 1e-3, 1, 1e3, 1e5),
+#              labels = c("0", "0.001", "1", "1000", "∞")) +
+#  scale_x_log10(
+#  breaks = c(1e-4,1e-2,1,1e2,1e4)) +
+  labs(
+    x = TeX("$\\bar{\\delta}_\\rho$"),
+    y = lab_estexp,
+    fill = "Nr. of networks"
+  )
+create_pdf("output.pdf/rho2_hex_real.pdf", last_plot(), width=0.45, height=0.4)
+```
+## Thm 12 Classifier Scores
+```{r}
+grouped_rho_scores <- expan_rho %>%
+  filter(real) %>%
+  group_by(alpha, b) %>%
+  nest() %>%
+    mutate(
+      optimal_cutoff = map(data, ~find_optimal_cutoff(.x, predictor_col = "median_delta_rho2", target_col = "bi_exp_m"))
+    ) %>%
+  unnest_wider(c(optimal_cutoff)) %>%
+  select(-results, -data)
+
+thm12list = list()
+thm12_score_pick <- grouped_rho_scores %>% filter(alpha == some_alpha, b == some_b)
+thm12_score_cutoff = thm12_score_pick %>% pull(cutoff)
+thm12_score_f1 = thm12_score_pick %>% pull(f1)
+thm12_score_acc = thm12_score_pick %>% pull(acc)
+store_result(thm12list, "thmRhoPickCutoff", thm12_score_cutoff, 3)
+store_result(thm12list, "thmRhoPickFOne", thm12_score_f1, 3)
+store_result(thm12list, "thmRhoPickAccuracy", thm12_score_acc, 3)
+write_latex_vars(thm12list, "output.tex/thmRhoList.tex")
+
+expan_rho %>%
+  filter(real, alpha==some_alpha, b==some_b) %>%
+  mutate(exp_class = cut(
+          bi_exp_m,
+          breaks = c(0, thm12_score_cutoff, 2),
+          labels = c(paste0("<",thm12_score_cutoff), paste0("≥",thm12_score_cutoff))
+        )) %>%
+  ggplot(aes(
+    median_delta_rho2,
+    fill=exp_class,
+    pattern = rhomod
+    #color = (rho_ratio==0|rho_ratio==Inf)
+  )) +
+  geom_histogram_pattern(
+    bins=30,alpha=0.8,position="identity",
+    pattern_fill = "red",
+    pattern_colour = "red",
+    pattern_alpha = 0.5,
+    pattern_angle = 25,
+    pattern_density = 0.05,
+    pattern_spacing = 0.03
+    ) +
+  scale_fill_viridis_d() +
+  #scale_color_manual(values = c("FALSE" = "lightgray", "TRUE" = "#E41A1C")) +
+#  guides(pattern = "none", color = "none") +
+  guides(
+  fill = guide_legend(override.aes = list(pattern = "none")),  # Remove pattern in the fill legend
+  pattern = "none",
+  color = "none"
+) +
+  scale_pattern_manual(values = c("FALSE" = "none", "TRUE" = "stripe"), guide = "none") +
+  theme(
+    legend.position = "top",
+    legend.spacing = unit(0, "cm"),
+    legend.margin = margin(0,0,0,0, "cm"),
+    legend.box.margin = margin(0,0,0,0, "cm"),
+    legend.box.spacing = unit(0.05, "cm"),
+  ) + 
+  labs(
+    x = TeX("$\\bar{\\delta}_\\rho$"),
+    y = "Number of networks",
+    fill = "Est. exponent"
+  )
+create_pdf("output.pdf/rho2_hist_real.pdf", last_plot(), width=0.45, height=0.4)
+```
+## Table
+```{r}
+
+# table
+thm12_tab_ab <- grouped_rho_scores %>%
+  mutate(alpha = paste0("$", alpha, "$")) %>%
+  summarise(f1 = paste0("$", roundnum(f1, 3), "$"), cutoff = paste0("$", roundnum(cutoff, 3), "$")) %>%
+  pivot_wider(names_from = b, values_from = c(f1, cutoff)) %>%
+  rename("$\\alpha$" = alpha)
+
+# Create the xtable object
+thm12_xtable <- xtable(thm12_tab_ab, 
+                      caption = "Summary of F1-score for binary classifier predicting small ($\\le \\mathrm{cutoff}$) estimated exponent based on positive median slack $\\bar\\delta_\\rho$.",
+                      label = "thm12_scores_table",
+                      align = "llllllllllll")
+
+custom_header <- list()
+custom_header$pos <- list(0)
+custom_header$command <- paste(
+  "$\\alpha$ & \\multicolumn{5}{c}{F1-score, varying $b$} & \\multicolumn{5}{c}{Cutoff for est. exp., varying $b$} \\\\",
+  "\\cmidrule(lr){2-6}",
+  "\\cmidrule(lr){7-11}",
+  "& $1.1$ & $1.25$ & $1.5$ & $2$ & $4$ & $1.1$ & $1.25$ & $1.5$ & $2$ & $4$ \\\\",
+  sep = "\n"
+)
+
+# Print the LaTeX table with the modified header
+thm12_latex_table <- print(thm12_xtable, 
+                          table.placement = "",
+                          caption.placement = "top",
+                          include.rownames = FALSE, 
+                          include.colnames = FALSE, 
+                          sanitize.text.function = identity, 
+                          booktabs = TRUE, 
+                          add.to.row = custom_header,
+                          size="\\small")
+thm12_latex_table <- gsub("lllllllllll", "@{}lllllllllll@{}", thm12_latex_table, fixed = TRUE)
+
+# Write the output to a LaTeX file
+writeLines(thm12_latex_table, "output.tex/thmTwelveTable.tex")
+```
+
+
+
+
+
+
+# Exponent Analysis
+```{r}
+exponent_analysis <- function(data, xcol, ycol, xname, yname) {
+  # Calculate correlations
+  correlation <- cor(data[[xcol]], data[[ycol]], method = "pearson")
+  spearman <- cor(data[[xcol]], data[[ycol]], method = "spearman")
+
+  cat("Pearson Correlation:", correlation, "\n")
+  cat("Spearman Correlation:", spearman, "\n")
+
+  # Fit linear model
+  lm_fit <- lm(reformulate(xcol, ycol), data = data)
+
+  # Calculate absolute deviations
+  data <- data %>%
+    ungroup() %>%
+    mutate(deviation = abs(.data[[ycol]] - predict(lm_fit)))
+
+  # Calculate percentages within deviation thresholds
+  within_0.05 <- mean(data$deviation <= 0.05) * 100
+  within_0.10 <- mean(data$deviation <= 0.10) * 100
+  within_0.15 <- mean(data$deviation <= 0.15) * 100
+
+  cat(sprintf("%.2f%% of networks are within 0.05 of the linear model.\n", within_0.05))
+  cat(sprintf("%.2f%% of networks are within 0.10 of the linear model.\n", within_0.10))
+  cat(sprintf("%.2f%% of networks are within 0.15 of the linear model.\n", within_0.15))
+
+  # Extract coefficients
+  intercept <- coef(lm_fit)[1]
+  slope <- coef(lm_fit)[2]
+
+  # Create plot
+  plot <- ggplot(data, aes(x = .data[[xcol]], y = .data[[ycol]])) +
+    geom_hex(bins = 15, color = "lightgray") +
+    scale_fill_gradient2(
+#      trans = "log", breaks = c(1, 4, 16, 64, 256)
+    ) +
+    geom_abline(intercept = intercept, slope = slope, color = "red", linetype = "dashed") +
+    geom_abline(intercept = intercept + 0.1, slope = slope, color = "black", linetype = "dashed", linewidth = 0.3) +
+    geom_abline(intercept = intercept - 0.1, slope = slope, color = "black", linetype = "dashed", linewidth = 0.3) +
+#    geom_abline(intercept = intercept + 0.15, slope = slope, color = "black", linetype = "dashed", linewidth = 0.3) +
+#    geom_abline(intercept = intercept - 0.15, slope = slope, color = "black", linetype = "dashed", linewidth = 0.3) +
+#    geom_abline(intercept = intercept + 0.05, slope = slope, color = "black", linetype = "dashed", linewidth = 0.3) +
+#    geom_abline(intercept = intercept - 0.05, slope = slope, color = "black", linetype = "dashed", linewidth = 0.3) +
+    theme(
+      legend.position = "top",
+      legend.spacing = unit(0, "cm"),
+      legend.margin = margin(0,0,0,0, "cm"),
+      legend.box.margin = margin(0,0,0,0, "cm"),
+      legend.box.spacing = unit(0.05, "cm"),
+      legend.key.size = unit(0.4, "cm"),
+      legend.key.height = unit(0.2, "cm")
+    ) +
+    labs(x = xname,
+         y = yname,
+         fill = "Nr. of networks")
+
+  return(list(corr=correlation, spearman=spearman, lm=lm_fit, closefrac=within_0.10, plot=plot))
+}
+
+
+data <- expan %>%
+  filter(interesting) %>%
+  filter(alpha == some_alpha, b == some_b)
+
+thm6_exp_res <- exponent_analysis(data, "wc_exponent", "bi_exp_m", "Exponent by Thm. 6 (avg.)", lab_estexp)
+thm6_exp_res$plot
+thm6_lm <- summary(thm6_exp_res$lm)
+
+store_result(results_list, "thmSixExpCorr", thm6_exp_res$corr, 3)
+store_result(results_list, "thmSixExpSpear", thm6_exp_res$spearman, 3)
+store_result(results_list, "thmSixExpCloseFrac", thm6_exp_res$closefrac, 1)
+store_result(results_list, "thmSixExpRSquared", thm6_lm$r.squared, 3)
+store_result(results_list, "thmSixExpRsd", thm6_lm$sigma, 3)
+write_latex_vars(results_list)
+create_pdf('output.pdf/thm6_exponent.pdf', thm6_exp_res$plot, width = 0.45, height = 0.36)
+
+thm4_exp_res <- exponent_analysis(data, "thm4_wcexp", "bi_exp_m", "Exponent by Thm. 4 (avg.)", lab_estexp)
+thm4_exp_res$plot
+thm4_lm <- summary(thm4_exp_res$lm)
+  
+store_result(results_list, "thmFourExpCorr", thm4_exp_res$corr, 3)
+store_result(results_list, "thmFourExpSpear", thm4_exp_res$spearman, 3)
+store_result(results_list, "thmFourExpCloseFrac", thm4_exp_res$closefrac, 1)
+store_result(results_list, "thmFourExpRSquared", thm4_lm$r.squared, 3)
+store_result(results_list, "thmFourExpRsd", thm4_lm$sigma, 3)
+write_latex_vars(results_list)
+create_pdf('output.pdf/thm4_exponent.pdf', thm4_exp_res$plot, width = 0.45, height = 0.36)
+
+``` 
+
+
+## Table
+Table with correlations for a larger range of values for alpha and b (Estimated exponent ~ Exponent of Thm 6)
+```{r}
+corr_tab <- expan %>%
+  filter(interesting) %>%
+  rename(thm6_wcexp=wc_exponent) %>%
+  pivot_longer(c(thm4_wcexp,thm6_wcexp), names_to = "thm", values_to = "pred_exp") %>%
+  filter(thm == "thm6_wcexp" | alpha == 0) %>%
+  group_by(thm, alpha, b) %>%
+  summarise(
+    corr = paste0("$", roundnum(cor(pred_exp, bi_exp_m),3), "$"),
+    spear = paste0("$", roundnum(cor(pred_exp, bi_exp_m, method = "spearman"), 3), "$"),
+  ) %>%
+  ungroup() %>%
+  pivot_wider(names_from = b, values_from = c(corr,spear)) %>%
+  select(-thm)
+corr_tab
+
+
+corr_xtable <- xtable(corr_tab, 
+                      caption = "Correlations between average estimated exponents and upper bounds of \\cref{lem_sublinear_by_large_overlap,lem_sublinear_with_cheap_start} for different values of $b$ (for \\cref{lem_sublinear_by_large_overlap}), respectively $\\alpha$ and $b$ (for \\cref{lem_sublinear_with_cheap_start}).",
+                      label = "corr_table_thm6",
+                      align = "llllllllllll")
+
+custom_header <- list(
+  pos = list(0, 0,1, 7),
+  command = c(
+    paste(
+      "\\toprule",
+      "$\\alpha$ & \\multicolumn{5}{c}{Pearson cor., varying $b$} & \\multicolumn{5}{c}{Spearman cor., varying $b$} \\\\",
+      "\\cmidrule(lr){2-6}",
+      "\\cmidrule(lr){7-11}",
+      "& $1.1$ & $1.25$ & $1.5$ & $2$ & $4$ & $1.1$ & $1.25$ & $1.5$ & $2$ & $4$ \\\\",
+      "\\midrule",
+      sep = "\n"
+    ),
+    "    & \\multicolumn{10}{l}{\\textbf{Correlations for \\cref{lem_sublinear_by_large_overlap}}} \\\\ \\addlinespace",
+    "   \\addlinespace & \\multicolumn{10}{l}{\\textbf{Correlations for \\cref{lem_sublinear_with_cheap_start}}} \\\\ \\addlinespace\n",
+    "\\bottomrule\n"
+  )
+)
+
+
+# Print the LaTeX table with the modified header
+corr_latex_table <- print(corr_xtable, 
+                          table.placement = "",
+                          caption.placement = "top",
+                          include.rownames = FALSE, 
+                          include.colnames = FALSE, 
+                          sanitize.text.function = identity, 
+                          booktabs = TRUE, 
+                          add.to.row = custom_header,
+                          hline.after = NULL,
+                          size="\\footnotesize")
+corr_latex_table <- gsub("lllllllllll", "@{}lllllllllll@{}", corr_latex_table, fixed = TRUE)
+
+# Write the output to a LaTeX file
+writeLines(corr_latex_table, "output.tex/corrTable.tex")
+```
+
+Table with Spearman correlations for a larger range of values for alpha and b (Estimated exponent ~ Exponent of Thm 6)
+```{r}
+expan %>%
+  filter(interesting) %>%
+  group_by(alpha, b) %>%
+  mutate(b = paste0("b = ", b)) %>%
+  summarise(
+    spearman = cor(wc_exponent, bi_exp_m, method = "spearman"),
+  ) %>%
+  pivot_wider(names_from = b, values_from = c(spearman))
+
+# data %>%
+#   ggplot(aes(x=wc_exponent, y=bi_exp_m)) +
+#   geom_hex(bins=15, color="lightgray") +
+#   #scale_fill_viridis(
+#   scale_fill_gradient2(
+#     trans = "log",
+#     breaks = c(1,4,16,64,256)
+#   ) +
+#   labs(
+#     x = "Exponent by Theorem 6",
+#     y = TeX("Estimated exponent $\\log_m(\\hat{c})$")
+#   )
+
+```
+
+
+
+
+
+
+# Looking at scaling GIRGs
+
+## scaling plots
+```{r}
+#bfs %>%
+#  filter(girg_scale) %>%
+#  left_join(girg_stats) %>%
+#  mutate(ple = as.ordered(ple)) %>%
+#  ggplot(aes(x=m, y = cost_bi, color=ple))+
+#  geom_point() +
+#  scale_x_log10() + scale_y_log10()
+#fit_power_law_from_plot(last_plot())
+
+  
+scale_cost_by_ple <- expan %>%
+  filter(girg_scale==1) %>%
+  left_join(girg_stats) %>%
+  #filter(temp==0, ple<10) %>%
+  filter(temp==0) %>%
+  ungroup() %>%
+  mutate(
+    ple = as.ordered(ple)
+  ) %>%
+#  group_by(n_gen,ple) %>%
+  #summarise(cost_bi=mean(cost_bi)) %>%
+  ggplot(aes(x=m, y=cost_bi, color = ple)) +
+  geom_point() +
+  #scale_color_discrete() +
+  #scale_color_brewer(type="seq") +
+  scale_x_log10() + scale_y_log10() + annotation_logticks() +
+  labs(
+    x = TeX("$m$"),
+    y = "bi-BFS cost"
+  )
+
+cost_ple_res <- fit_power_law_from_plot(scale_cost_by_ple)
+cost_by_ple_lines <- cost_ple_res$fitted_lines
+
+scale_cost_by_ple + cost_by_ple_lines
+create_pdf('output.pdf/girg_cost_with_lines.pdf', last_plot(), width = 0.48, height = 0.36)
+    
+fit_tbl <- tibble(cost_ple_res$results) %>%
+  rename(
+    ple = Group,
+  ) %>%
+  transmute(
+    ple = as.numeric(ple),
+    "Fitted model" = paste0("$\\text{cost} \\sim ", roundnum(Coefficient_a,3), " \\cdot m^{", roundnum(Exponent_b, 3), "}$")
+  ) %>%
+  arrange(ple)
+
+fit_tbl_ltx <- kable(fit_tbl,
+                     format = "latex",
+                     booktabs = TRUE,
+                     escape = FALSE,
+                     linesep = "",
+                     caption = "Coefficients of linear fit for \\cref{fig:girg_cost_with_lines}.\\label{tab:linear_fit}")%>%
+  gsub("rl", "@{}ll@{}", ., fixed = TRUE) %>%
+  gsub("caption", "captionof{table}", ., fixed = TRUE) %>%
+  gsub("\\begin{table}\n\n", "", ., fixed = TRUE) %>%
+  gsub("\\end{table}", "", ., fixed = TRUE)
+writeLines(fit_tbl_ltx, "output.tex/scalingfit.tex")
+
+```
+
+```{r}
+expan %>%
+  filter(girg_scale) %>%
+  left_join(girg_stats, by="graph") %>%
+  filter(temp==0) %>%
+  filter(alpha==0, b == 2) %>%
+  ungroup() %>%
+  mutate(
+    ple = as.ordered(ple)
+  ) %>%
+  group_by(n_gen,ple) %>%
+  summarise(bi_exp_m=mean(bi_exp_m)) %>%
+  ggplot(aes(x=n_gen, y=bi_exp_m, color = ple)) +
+  geom_point() +
+  geom_line() +
+  #scale_color_brewer(type="seq") +
+  #scale_color_discrete() +
+  labs(
+    x = TeX("$n$"),
+    y = lab_estexp,#TeX("Estimated exp. $x = \\log_m\\,c$ (avg.)"),
+    color = TeX("$\\tau$")
+  ) +
+  scale_x_log10() + annotation_logticks(sides="b")
+create_pdf('output.pdf/girg_n_bi_exp.pdf', last_plot(), width = 0.8, height = 0.36)
+
+```
+
+
+```{r}
+expan %>%
+  filter(girg_scale) %>%
+  left_join(girg_stats, by="graph") %>%
+  filter(temp==0, ple<10) %>%
+  filter(alpha==0.0, b == 2) %>%
+  ungroup() %>%
+  mutate(
+    ple = as.ordered(ple)
+  ) %>%
+  ggplot(aes(x=relevant_overlap_rel, y = bi_exp_m, color = ple, size = n_gen)) +
+  scale_size(
+    transform = "sqrt",
+    breaks = c(1000,100000)
+  ) +
+  geom_point(alpha=0.33) +
+  labs(
+    x = lab_expover,
+    y = lab_estexp,
+    size = "n"
+  ) +
+  theme(legend.spacing = unit(0.0,"cm"))
+create_pdf('output.pdf/girg_overlap_biexp.pdf', last_plot(), width = 0.48, height = 0.36)
+```
+
+
+```{r}
+expan %>%
+  filter(girg_scale) %>%
+  left_join(girg_stats, by="graph") %>%
+  filter(temp==0) %>%
+  filter(alpha==0, b == 2) %>%
+  ungroup() %>%
+  mutate(
+      ple = as.ordered(ple)
+  ) %>%
+  group_by(n_gen,ple) %>%
+  summarise(relevant_overlap_rel=mean(relevant_overlap_rel)) %>%
+  ggplot(aes(x=n_gen, y=relevant_overlap_rel, color = ple)) +
+  geom_point() + geom_line() +
+  labs(
+    x = TeX("n"),
+    y = lab_expover
+  ) +
+  scale_x_log10() + annotation_logticks(sides="b") 
+create_pdf('output.pdf/girg_n_overlap.pdf', last_plot(), width = 0.48, height = 0.36)
+```
+
+
+```{r}
+#cost_with_lines + theme(legend.position = "bottom") | n_bi_exp + theme(legend.position = "bottom") | girg_overlap_biexp + theme(legend.position = "bottom")
+
+#n_bi_exp + 
+
+
+```
+
+## how many with positive expansion overlap?
+
+```{r}
+gc()
+
+median_biexp = expan_raw %>% summarize(m = median(bi_exp_m)) %>% pull(m) 
+store_result(results_list, "medianEstexp", median_biexp)
+
+# Function to format `b` into a LaTeX-safe string
+format_b_latex <- function(prefix, b) {
+  # Convert number to character and split into individual characters
+  b_chars <- str_split(as.character(b), "")[[1]]
+  
+  # Convert digits to words, keep "." as "Dot"
+  word_parts <- map_chr(b_chars, function(char) {
+    if (char == ".") {
+      return("Dot")  # Keep dot as "Dot"
+    } else {
+      return(str_to_title(english(as.numeric(char))))  # Convert digits to words with capitalization
+    }
+  })
+  
+  # Combine the prefix and transformed number
+  str_c(prefix, paste(word_parts, collapse = ""))
+}
+
+# 
+posOverlHigh <- expan_raw %>%
+  group_by(b) %>%
+  filter(bi_exp_m > median_biexp) %>%
+  summarise(posOverFrac = mean(overlap>0.0) * 100) %>%
+  mutate(bstr = map_chr(b, ~ format_b_latex("posOverlHigh", .x)))
+posOverlHigh
+for (i in seq_len(nrow(posOverlHigh))) {
+  store_result(results_list, posOverlHigh[[i, 3]], posOverlHigh[[i, 2]], digits = 1)
+}
+write_latex_vars(results_list)
+
+posOverlLow <- expan_raw %>%
+  group_by(b) %>%
+  filter(bi_exp_m <= median_biexp) %>%
+  summarise(posOverFrac = mean(overlap>0.0) * 100) %>%
+  mutate(bstr = map_chr(b, ~ format_b_latex("posOverlLow", .x)))
+posOverlLow
+for (i in seq_len(nrow(posOverlLow))) {
+  store_result(results_list, posOverlLow[[i, 3]], posOverlLow[[i, 2]], digits = 1)
+}
+write_latex_vars(results_list)
+
+substOverlHigh <- expan_raw %>%
+  group_by(b) %>%
+  filter(bi_exp_m > median_biexp) %>%
+  summarise(substFrac = mean(overlap/dist>=0.5) * 100) %>%
+  mutate(bstr = map_chr(b, ~ format_b_latex("substOverlHigh", .x)))
+substOverlHigh
+for (i in seq_len(nrow(substOverlHigh))) {
+  store_result(results_list, substOverlHigh[[i, 3]], substOverlHigh[[i, 2]], digits = 1)
+}
+write_latex_vars(results_list)
+
+substOverlLow <- expan_raw %>%
+  group_by(b) %>%
+  filter(bi_exp_m <= median_biexp) %>%
+  summarise(substFrac = mean(overlap/dist>=0.5) * 100) %>%
+  mutate(bstr = map_chr(b, ~ format_b_latex("substOverlLow", .x)))
+substOverlLow
+for (i in seq_len(nrow(substOverlLow))) {
+  store_result(results_list, substOverlLow[[i, 3]], substOverlLow[[i, 2]], digits = 1)
+}
+write_latex_vars(results_list)
+
+
+gc()
+
+```
+
+
+## Plots for simpler parameters
+```{r}
+
+expan_d <- expan %>%
+  mutate(
+#    rel_diam = diameter / n, #bad-normalization# 
+    diam_exp = log(diameter) / log(n),
+    estexp_sublin = bi_exp_m < median_biexp
+  ) %>%
+  filter(real)
+
+expan_d %>%
+  ggplot(aes(x = diam_exp, y = bi_exp_m)) +
+  geom_hex(bins=15, color="lightgray") +
+  scale_fill_gradient2() +
+  labs(
+    x = TeX("$\\log_m(\\text{diameter})"),
+    y = lab_estexp
+  )
+create_pdf('output.pdf/diameter_plot.pdf', last_plot(), width = 0.48, height = 0.36)
+
+# try to search across est. exp thresholds
+
+thresholds <- seq(0.4, 0.75, 0.001)
+results_diam <- map_dfr(thresholds, function(thresh) {
+  df <- expan %>%
+    filter(real) %>%
+    mutate(
+      diam_exp = log(diameter) / log(n),
+      estexp_sublin = bi_exp_m < thresh
+    )
+  # Skip thresholds that produce only one class
+  if(length(unique(df$estexp_sublin)) < 2) {
+    return(NULL)
+  }
+  cutpointr(df, diam_exp, estexp_sublin,
+            pos_class = TRUE,
+            method = maximize_metric,
+            metric = F1_score,
+            direction = "<=") %>%
+    mutate(threshold = thresh)
+})
+
+results_diam %>% ggplot(aes(x=threshold,y=F1_score)) + geom_line() + labs(x="Threshold for estimated exponent", y = "F1-score")
+
+diam_maxf1 <- results_diam %>% slice_max(F1_score, with_ties = FALSE)
+diam_maxf1
+
+store_result(results_list, "diameterFOne", diam_maxf1$F1_score, 3)
+store_result(results_list, "diameterAccuracy", diam_maxf1$acc, 3)
+store_result(results_list, "diameterCut", diam_maxf1$optimal_cutpoint, 3)
+store_result(results_list, "diameterEstExpCut", diam_maxf1$threshold, 3)
+write_latex_vars(results_list)
+```
+
+```{r}
+expan_het <- expan %>%
+  filter(real) %>%
+  mutate(heterogeneity = log(deg_cov+1),
+         estexp_sublin = bi_exp_m < median_biexp)
+
+expan_het %>% ggplot(aes(x = heterogeneity,
+             y = locality,
+             color = bi_exp_m)) +
+  geom_point() +
+  scale_shape_discrete() +
+  scale_color_viridis("Est. exp.") +
+  labs(
+    x = TeX("$\\log_m(\\text{diameter})"),
+    y = lab_estexp
+  )
+create_pdf('output.pdf/loc_het_plot.pdf', last_plot(), width = 0.48, height = 0.36)
+
+model <- glm(estexp_sublin ~ heterogeneity + locality, data = expan_het, family = binomial)
+expan_het$glm_pred <- predict(model, type="response")
+
+#compute_metrics(expan_het$glm_pred>0.5,expan_het$estexp_sublin)
+loc_het_exp_cp <- cutpointr(expan_het, glm_pred, estexp_sublin,
+                         method = maximize_metric,
+                         metric = F1_score,
+                         direction = ">=")
+
+
+thresholds <- seq(0.4, 0.75, 0.001)
+results_lh <- map_dfr(thresholds, function(thresh) {
+  df <- expan %>%
+    filter(real) %>%
+    mutate(heterogeneity = log(deg_cov+1),
+           estexp_sublin = bi_exp_m < thresh)
+  # Skip thresholds that produce only one class
+  if(length(unique(df$estexp_sublin)) < 2) {
+    return(NULL)
+  }
+  
+  model <- glm(estexp_sublin ~ heterogeneity + locality, data = df, family = binomial)
+  df$glm_pred <- predict(model, type="response")
+  
+  #compute_metrics(expan_het$glm_pred>0.5,expan_het$estexp_sublin)
+  cutpointr(df, glm_pred, estexp_sublin,
+                           method = maximize_metric,
+                           metric = F1_score,
+                           direction = ">=") %>%
+    mutate(threshold = thresh)
+})
+
+results_lh %>% ggplot(aes(x=threshold,y=F1_score)) + geom_line() + labs(x="Threshold for estimated exponent", y = "F1-score")
+
+lochet_maxf1 <- results_lh %>% slice_max(F1_score, with_ties = FALSE)
+lochet_maxf1
+
+
+
+
+
+store_result(results_list, "locHetFOne", lochet_maxf1$F1_score, 3)
+store_result(results_list, "locHetAccuracy", lochet_maxf1$acc, 3)
+store_result(results_list, "locHetCut", lochet_maxf1$optimal_cutpoint, 3)
+store_result(results_list, "locHetEstExpCut", lochet_maxf1$threshold, 3)
+write_latex_vars(results_list)
+```
+
+# End important stuff
+## below: scratchpad / old stuff
+
+let's look at relative distances
+
+## differentces between close and far vertices
+```{r}
+expan_raw %>%
+  #filter(graph %in% c("coAuthorsDBLP.edges", "socfb-Auburn71.edges")) %>%
+  filter(alpha == 0.1, b == 2) %>%
+  select(
+    graph, alpha, b,
+    relevant_overlap_rel,
+    dist,
+  ) %>%
+  group_by(graph) %>%
+  mutate(
+    rel_dist = dist/max(dist),
+  ) %>%
+  ggplot(aes(x = rel_dist, y = relevant_overlap_rel)) +
+#  geom_jitter() +
+  geom_hex(color="gray") +
+  scale_fill_viridis()
+#  facet_wrap(~graph)
+
+
+  
+df <- expan_raw %>%
+  filter(alpha == 0.1, b == 2) %>%
+  select(
+    graph, alpha, b,
+    relevant_overlap_rel,
+    bi_exp_m,
+    dist,
+  ) %>%
+  group_by(graph) %>%
+  mutate(
+    rel_dist = dist/max(dist)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    dist_bins = cut(rel_dist, breaks = seq(0, max(rel_dist), length.out = 5), include.lowest = TRUE, dig.lab=2),
+    dist_bins = ordered(dist_bins, labels = paste0("Rel. dist. ", levels(dist_bins)))
+  )
+
+df %>%
+  ggplot(aes(x = relevant_overlap_rel, fill = dist_bins)) +
+  geom_histogram(bins = 20) + 
+  facet_wrap(~dist_bins) +
+  theme(legend.position = "none") +
+  labs(x = "Relative Expansion overlap", y = "Number of vertex pairs", fill="Rel. dist.")
+ggsave("output.pdf/distance_comparison_gamma.pdf", last_plot(), width = 5, height = 3)
+
+df %>%
+  ggplot(aes(x = bi_exp_m, fill = dist_bins)) +
+  geom_histogram(bins = 20) + 
+  facet_wrap(~dist_bins) +
+  theme(legend.position = "none") +
+  labs(x = "Estimated exponent", y = "Number of vertex pairs", fill="Rel. dist.")
+ggsave("output.pdf/distance_comparison_estexp.pdf", last_plot(), width = 5, height = 3)
+
+#  geom_jitter() +
+  #geom_hex(color="gray") +
+  #scale_fill_viridis()
+#  facet_wrap(~graph)
+
+```
+
+
+## uni cost vs bi cost
+```{r}
+#    bi_exp_m = log(cost_bi) / log(m),
+#    bi_exp_uni = log(cost_bi) / log(cost_uni),
+#    uni_exp_m = log(cost_uni) / log(m),
+
+expan %>%
+  pivot_longer(c(bi_exp_m, uni_exp_m, bi_exp_uni), names_to = "algo", values_to = "exponent") %>%
+  ggplot(aes(x = exponent, color = algo)) +
+  geom_density()
+
+
+expan %>%
+  filter(real) %>%
+  group_by(graph) %>%
+  summarise(across(c(bi_exp_m, uni_exp_m), mean)) %>%
+  ggplot(aes(x = bi_exp_m, y = uni_exp_m)) +
+  labs(
+    x = "bi-BFS exponent (avg.)",
+    y = "uni-BFS exponent (avg.)"
+  ) +
+  geom_hex(color="lightgray") + scale_fill_gradient2()
+ggsave("output.pdf/exp_cmp_bi_uni.pdf", last_plot(), width=2.5, height=2)
+
+expan %>%
+  filter(real) %>%
+  group_by(graph) %>%
+  summarise(across(c(bi_exp_m, bi_exp_uni), mean)) %>%
+  ggplot(aes(x = bi_exp_m, y = bi_exp_uni)) +
+  labs(
+    x = "bi-BFS exponent (avg.)",
+    y = "bi-uni-speedup exponent (avg.)"
+  ) +
+  geom_hex(color="lightgray") + scale_fill_gradient2()
+ggsave("output.pdf/exp_cmp_bi_speedup.pdf", last_plot(), width=2.5, height=2)
+```
+
+## what about evaluating thm 4?
+
+```{r}
+expan %>%
+  filter(alpha == 0, b == 2) %>%
+  mutate(
+    thm4c = relevant_overlap_rel / (log(m)/log(2))
+  ) %>%
+  ggplot(aes(x = 1-(thm4c/2), y = bi_exp_m)) +
+  geom_point()
+```
+
+
+```{r}
+expan %>% left_join(girg_stats) %>% left_join(bfs, by="graph") %>% filter(girg_scale.x, ple==2.1) %>%
+  ggplot(aes(cost_bi.x, cost_bi.y, color=ple)) +
+  geom_point()
+
+expan %>% left_join(girg_stats) %>% left_join(bfs, by="graph") %>% filter(girg_scale.x, ple==2.1) %>%
+  ggplot(aes(cost_uni.x, cost_bi.x, color=ple)) +
+  geom_point()
+
+expan %>% left_join(girg_stats) %>% left_join(bfs, by="graph") %>% filter(girg_scale.x, ple==2.1) %>%
+  ggplot(aes(cost_uni.y, cost_bi.y, color=ple)) +
+  geom_point()
+
+
+##
+expan %>% filter(real) %>% left_join(bfs, by="graph") %>%
+  ggplot(aes(cost_uni.x, cost_uni.x)) +
+  geom_point()
+expan %>% filter(real) %>% left_join(bfs, by="graph") %>% filter(cost_bi.x < 0.01 * cost_uni.x) %>%
+  ggplot(aes(cost_bi.y, cost_bi.y)) +
+  geom_point()
+```
+
+
+## Scores plot
+```{r}
+
+
+# Plot F1-score vs cutoff
+scores_plot <- function(data) {
+  ggplot(data, aes(x = cutoff)) +
+    geom_line(aes(y = f1, color="F1")) +
+    geom_line(aes(y = recall, color="Recall")) +
+    geom_line(aes(y = precision, color="Precision")) +
+    geom_line(aes(y = accuracy, color="Accuracy")) +
+    labs(title = "F1-score for different cutoffs", x = "Cutoff for bi_exp_m", y = "F1-score")
+}
+
+expan_scores <- find_optimal_cutoff(expan, predictor_col = "relevant_overlap_rel", target_col = "bi_exp_m")
+#optimal <- find_optimal_cutoff(expan %>% mutate(bi_exp_m = log(cost_bi)/log(m)), predictor_col = "relevant_overlap_rel", target_col = "bi_exp_m")
+
+grouped_exp_scores <- expan %>%
+  filter(interesting) %>%
+  group_by(alpha, b) %>%
+  nest() %>%
+  mutate(
+    optimal_cutoff = map(data, ~find_optimal_cutoff(.x, predictor_col = "relevant_overlap_rel", target_col = "bi_exp_m"))
+  ) %>%
+  unnest_wider(c(optimal_cutoff)) %>%
+  unnest(results)  # Unnest the detailed metrics for each cutoff if needed
+
+expan_scores$results %>% scores_plot()
+
+#rho_scores <- find_optimal_cutoff(rho_expan, predictor_col = "delta_rho", target_col = "bi_exp_m")
+
+#rho_scores$results %>% scores_plot()
+
+```
+
+## Scores for Theorem 6
+```{r}
+# nice plot
+grouped_exp_scores %>% slice_max(f1) %>% summarise(f1, accuracy) %>%
+  ggplot(aes(x = as.ordered(alpha), y = as.ordered(b), color = f1, size = accuracy)) +
+  scale_color_viridis() +
+  geom_point()
+
+
+# overlap histogram real world networks
+expan %>%
+  filter(interesting) %>%
+  filter(b==some_b, alpha==some_alpha) %>%
+  overlap_histogram(., cutoff=thm6_score_cutoff)
+create_pdf('output.pdf/overlap_hist_real.pdf', last_plot(), width = 0.48, height = 0.33)
+```
+
+
+```{r}
+
+# how does this look like with optimal f1 values? are the cutoffs still reasonable?
+grouped_exp_scores %>%
+  filter(f1==max(f1)) %>%
+  mutate(alpha = paste0("$", alpha, "$")) %>%
+#summarise(value = paste0("$", format(round(f1,3),nsmall=3), "$, $", format(round(accuracy,3),nsmall=3), "$")) %>%
+  summarise(value = paste0("$", roundnum(f1,3), "$ -- $", roundnum(cutoff,3), "$")) %>%
+  pivot_wider(names_from = b, values_from = value) %>%
+  rename_with(~ paste0("$b = ", ., "$"), -alpha) %>% # Format column names for LaTeX
+  rename("$\\alpha$" = alpha)
+
+grouped_exp_scores %>%
+  filter(f1 == max(f1)) %>%
+  ggplot(aes(x = as.ordered(alpha), y = as.ordered(b), )) +
+  geom_point(aes(fill = f1), shape=21, stroke=0, size=8, position = position_nudge(x=-0)) + scale_fill_continuous() +
+  geom_point(aes(colour = cutoff), shape=17, size=4, position = position_nudge(x=0.1,y=0.1)) + scale_color_viridis() 
+
+# how are the estimated exponents actually distributed?
+expan %>%
+  filter(real) %>%
+  group_by(graph) %>%
+  summarise(bi_exp_m = mean(bi_exp_m)) %>%
+  ggplot(aes(x = bi_exp_m)) + geom_histogram(bins=100)
+
+```
+
+Scores for Theorem 12
+```{r}
+grouped_rho_scores <- rho_expan %>%
+  filter(interesting) %>%
+  group_by(alpha, b) %>%
+  nest() %>%
+  mutate(
+    optimal_cutoff = map(data, ~find_optimal_cutoff(.x, predictor_col = "delta_rho", target_col = "bi_exp_m"))
+  ) %>%
+  unnest_wider(optimal_cutoff) %>%
+  unnest(results)  # Unnest the detailed metrics for each cutoff if needed
+```
+
+```{r}
+# welcher cutoff?
+
+grouped_rho_scores %>%
+  filter(alpha == some_alpha, b == some_b) %>%
+  filter(f1 == max(f1))
+
+grouped_rho_scores %>%
+  filter(alpha == some_alpha, b == some_b) %>%
+  filter(cutoff == 0.75)
+```
+oh this is much lower
+
+```{r}
+grouped_rho_scores %>%
+  filter(f1==max(f1)) %>%
+  mutate(alpha = paste0("$", alpha, "$")) %>%
+#summarise(value = paste0("$", format(round(f1,3),nsmall=3), "$, $", format(round(accuracy,3),nsmall=3), "$")) %>%
+  summarise(value = paste0("$", roundnum(f1,3), "$ -- $", roundnum(cutoff,3), "$")) %>%
+  pivot_wider(names_from = b, values_from = value) %>%
+  rename_with(~ paste0("$b = ", ., "$"), -alpha) %>% # Format column names for LaTeX
+  rename("$\\alpha$" = alpha)
+
+grouped_rho_scores %>%
+  filter(f1 == max(f1)) %>%
+  ggplot(aes(x = as.ordered(alpha), y = as.ordered(b), )) +
+  geom_point(aes(fill = f1), shape=21, stroke=0, size=8, position = position_nudge(x=-0)) + scale_fill_continuous() +
+  geom_point(aes(colour = cutoff), shape=19, size=5, position = position_nudge(x=0.1,y=0.1)) + scale_color_viridis()  +
+  labs(
+    x = TeX("\\alpha"),
+    y = "b"
+  )
+```
+
+
+evaluation
+
+
+```{r}
+
+thm_rho_score_pick <- grouped_rho_scores %>% filter(alpha == 0.1, b == 2, cutoff==0.75)
+store_result("thmRhoPickCutoff", 0.75, 2)
+store_result("thmRhoPickFOne", thm_rho_score_pick %>% pull(f1), 3)
+store_result("thmRhoPickAccuracy", thm_rho_score_pick %>% pull(accuracy), 3)
+write_latex_vars()
+
+# table
+thm_rho_tab <- grouped_rho_scores %>%
+  filter(cutoff==0.75) %>%
+  mutate(alpha = paste0("$", alpha, "$")) %>%
+  summarize(f1 = paste0("$", format(round(f1,3),nsmall=3),"$")) %>%
+  pivot_wider(names_from = b, values_from = f1) %>%
+  rename_with(~ paste0("$b = ", ., "$"), -alpha) %>% # Format column names for LaTeX
+  rename("$\\alpha$" = alpha)
+thm_rho_tab
+
+thm_rho_latex_table <- kable(thm_rho_tab,
+                          format = "latex",
+                          booktabs = TRUE,
+                          escape = FALSE,
+                          caption = "Summary of F1-score for binary classifier predicting small ($\\le 0.75$) estimated exponent based on criterion for \\cref{thm_dichotomy} for different values of $b$.",
+                          label = "thm_rho_scores_table") %>%
+  gsub("llllll", "@{}llllll@{}", ., fixed = TRUE)  # Inject @{} into tabular
+writeLines(thm_rho_latex_table, "output.tex/thmRhoTable.tex")
+```
+
+
+# debug rho stuff
+```{r}
+rawsmall %>% group_by(graph) %>%
+  transmute(var = log(rho_thresh))%>%
+  mutate(var, is.nan(var), is.na(var), var == Inf, var == -Inf) %>% summary
+
+rawsmall %>% group_by(alpha, b, graph) %>%
+  transmute(var = median(log(rho_thresh) - log(rho)))%>%
+  mutate(var, is.nan(var), is.na(var), var == Inf, var == -Inf) %>% summary
+
+rawsmall %>% group_by(alpha, b, graph) %>%
+  transmute(var = median(log(rho_thresh) - log(rho)))%>%
+  mutate(var = ifelse(var == Inf, 1, var)) %>%
+  ggplot() + geom_density(aes(var))
+
+rawsmall %>% group_by(alpha, b, graph) %>%
+  transmute(var = median(log(rho_thresh) - log(rho)))%>%
+  mutate(var, is.nan(var), is.na(var), var == Inf, var == -Inf) %>% summary
+
+rawsmall %>% group_by(alpha, b, graph) %>%
+  transmute(var = median(log(rho_thresh) - log(rho)))%>%
+  group_by(var > 0) %>% summarise(n())
+
+
+rawsmall %>% group_by(alpha, b, graph) %>%
+  filter(alpha == 0, b == 2) %>%
+  transmute(var = median(1/(1+rho)) - median(1/(1+rho_thresh)),
+            bi_exp_m = mean(bi_exp_m))%>%
+  ggplot() + geom_hex(aes(x=var, y = bi_exp_m), color="lightgray") + scale_fill_gradient2()
+
+rawsmall %>% group_by(alpha, b, graph) %>%
+  filter(alpha == 0, b == 2) %>%
+  #transmute(var = median(1/(1+rho)) - median(1/(1+rho_thresh)))%>%
+  mutate(var = median(log(rho_thresh) - log(rho)))%>%
+  mutate(var = ifelse(var==Inf, 3, var))%>%
+  transmute(var = ifelse(var==-Inf, -7, var),
+            bi_exp_m = mean(bi_exp_m))%>%
+  ggplot() + geom_hex(aes(x=var, y = bi_exp_m), color="lightgray") + scale_fill_gradient2()
+
+rawsmall %>% group_by(alpha, b, graph) %>%
+  filter(alpha == 0, b == 2) %>%
+  #transmute(var = median(1/(1+rho)) - median(1/(1+rho_thresh)))%>%
+  summarize(var = mean(relevant_overlap_rel),
+            bi_exp_m = mean(bi_exp_m))%>%
+  ggplot() + geom_hex(aes(x=var, y = bi_exp_m), color="lightgray") + scale_fill_gradient2()
+```
+```{r}
+expan %>% filter(alpha == 0, b == 2) %>%
+  ggplot() + geom_hex(aes(x=median_delta_rho, y = bi_exp_m), color="lightgray") + scale_fill_gradient2()
+
+```
+
+
+
+
+
+

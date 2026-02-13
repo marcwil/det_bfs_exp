@@ -113,8 +113,46 @@ TEST_F(ExpansionTest, TestGetDist)
         signed dist = expansion.get_dist();
         auto [uni_dist, uni_cost] = BFS::search(H, s, t);
         auto [bi_dist, bi_cost] = biBFS::search(H, s, t);
-        EXPECT_EQ(dist, uni_dist);
+        EXPECT_EQ(dist, bi_dist);
         EXPECT_EQ(bi_dist, uni_dist);
+    }
+}
+
+TEST_F(ExpansionTest, TestUniCost)
+{
+    ComponentStructure CS(g);
+    Graph H(g, CS.nodes_of_component(CS.largest_component()));
+    for (unsigned i = 0; i < 100; i++)
+    {
+        node s = i;
+        node t = (i + 100) % H.n();
+
+        Expansion expansion(H, s, t);
+        auto res = expansion.evaluate(2.0, 0.1);
+
+        auto cost_s = res.cost_uni_s;
+        auto [uni_dist, uni_cost_s] = BFS::search(H, s, t);
+        EXPECT_EQ(cost_s, uni_cost_s);
+
+        auto cost_t = res.cost_uni_t;
+        auto [uni_dist_, uni_cost_t] = BFS::search(H, t, s);
+        EXPECT_EQ(cost_t, uni_cost_t);
+    }
+}
+
+TEST_F(ExpansionTest, TestBiCost)
+{
+    ComponentStructure CS(g);
+    Graph H(g, CS.nodes_of_component(CS.largest_component()));
+    for (unsigned i = 0; i < 100; i++)
+    {
+        node s = i;
+        node t = (i + 100) % H.n();
+        Expansion expansion(H, s, t);
+        auto res = expansion.evaluate(2.0, 0.1);
+        auto exp_bicost = res.cost_bi;
+        auto [bi_dist, bi_cost] = biBFS::search(H, s, t);
+        EXPECT_EQ(exp_bicost, bi_cost);
     }
 }
 
