@@ -6,6 +6,10 @@ fi
 
 cd instances
 echo "Downloading real.zip ..."
-wget https://external-validity.iti.kit.edu/download/graphs-archives/real.zip
+#wget https://external-validity.iti.kit.edu/download/graphs-archives/real.zip
+wget https://zenodo.org/record/6586185/files/edge_lists_real.zip?download=1 -O networks.zip
 echo "Unzipping..."
-unzip real.zip
+#unzip real.zip
+unzip networks.zip
+
+

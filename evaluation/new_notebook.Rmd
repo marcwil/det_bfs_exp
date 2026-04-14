@@ -15,6 +15,8 @@ lab_estexp <- TeX("Estimated exp. $x = \\log_m\\,c$ (avg.)")
 lab_expover <- TeX("avg. rel. exp. overlap $\\bar{\\gamma}$") #TeX("$\\gamma = $ expansion overlap /$~d_\\alpha(s,t)$")
 
 realnames <- tibble(read.csv("../output/realnames.csv"))
+#selectedreal <- tibble(read.csv("../output/selreal.csv"))
+duplicates <- tibble(read.csv("../output/duplicates.csv"))
 
 print("Reading stats csv file..")
 stats <- tibble(read.csv("../output/stats_merged.csv"))
@@ -23,8 +25,9 @@ stats <- stats %>%
     girg = startsWith(graph, "girg"),
     girg_scale = startsWith(graph, "scale"),
     real = !girg & !girg_scale,
-    tree = m == (n - 1),
-    sparse = avgdeg < 100,
+    #extvalsel = graph %in% selectedreal$graph, #"selected" in external validity paper
+    #tree = m == (n - 1),
+    #sparse = avgdeg < 100,
     #interesting = real & !tree & sparse,
     interesting = real,
     locality = (local_clustering + global_clustering + distance_locality) /3,
@@ -34,7 +37,8 @@ stats
 
 from_wrong_website <- setdiff(stats %>% filter(real) %>% pull(graph), realnames$graph)
 stats <- stats %>%
-  filter(!graph %in% from_wrong_website)
+  filter(!graph %in% from_wrong_website, # only keep real networks from 3006 dataset
+         !graph %in% duplicates$graph) # remove duplicates from 3006
 
 diam <- tibble(read.csv("../output/teex_diameter.csv")) %>%
   filter(!graph %in% from_wrong_website) %>%
@@ -55,6 +59,7 @@ girg_stats <- stats %>%
 print("Creating expan table.")
 expan_raw <- tibble(read.csv("../output/expan_merged.csv")) %>%
   filter(!graph %in% from_wrong_website) %>%
+  filter(!graph %in% duplicates$graph) %>%
   filter(alpha != 0.05) %>%
   left_join(stats%>%select(graph, m), by = "graph") %>%
   mutate(
